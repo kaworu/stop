@@ -94,8 +94,6 @@ else
    AC_CHECK_HEADERS([curses.h],[:],[missing_headers="$missing_headers $ac_header"])
 fi
 
-AC_CHECK_FILE($PROCDIR/stat,,AC_MSG_ERROR(Cannot find /proc/stat. Make sure you have a Linux-compatible /proc filesystem mounted. See the file README for help.))
-AC_CHECK_FILE($PROCDIR/meminfo,,AC_MSG_ERROR(Cannot find /proc/meminfo. Make sure you have a Linux-compatible /proc filesystem mounted. See the file README for help.))
 
 PLPA_INCLUDED(plpa-1.1)
 PLPA_INIT(plpa_happy=yes, plpa_happy=no)

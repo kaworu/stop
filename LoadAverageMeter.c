@@ -27,9 +27,9 @@ static inline void LoadAverageMeter_scan(double* one, double* five, double* fift
     if (size != sizeof(struct loadavg))
         assert(("wrong size for vm.loadavg", 0));
 
-    *one     = (double)la->ldavg[0];
-    *five    = (double)la->ldavg[1];
-    *fifteen = (double)la->ldavg[2];
+    *one     = (double)la->ldavg[0] / (double)la->fscale;
+    *five    = (double)la->ldavg[1] / (double)la->fscale;
+    *fifteen = (double)la->ldavg[2] / (double)la->fscale;
 
     free(la);
 }

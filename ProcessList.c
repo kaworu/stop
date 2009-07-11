@@ -16,6 +16,7 @@ in the source distribution for its full text.
 #include "UsersTable.h"
 #include "Hashtable.h"
 #include "String.h"
+#include "Sysctl.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -218,16 +219,7 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    this->traceFile = fopen("/tmp/htop-proc-trace", "w");
    #endif
 
-   FILE* status = fopen(PROCSTATFILE, "r");
-   assert(status != NULL);
-   char buffer[256];
-   int procs = -1;
-   do {
-      procs++;
-      fgets(buffer, 255, status);
-   } while (String_startsWith(buffer, "cpu"));
-   fclose(status);
-   this->processorCount = procs - 1;
+   int procs = Sysctl.getInt("kern.smp.cpus");
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
 

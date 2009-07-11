@@ -70,7 +70,7 @@ static void * get(const char *name, size_t *size) {
     if (size != NULL)
         *size = 0;
 
-    if (strlcpy(key, name, sizeof(key) >= sizeof(key)))
+    if (strlcpy(key, name, sizeof(key)) >= sizeof(key))
         assert(("sysctl key too long", 0));
 
     /* get the oid */

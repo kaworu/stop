@@ -28,6 +28,8 @@ typedef enum ACPresence_ {
 
 extern int BatteryMeter_attributes[];
 
+/* still named getProcBatData event if it doesn't use Proc, just to ease merge. */
+/* dummy */
 extern MeterType BatteryMeter;
 
 #endif

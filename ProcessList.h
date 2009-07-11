@@ -19,6 +19,7 @@ in the source distribution for its full text.
 #include "UsersTable.h"
 #include "Hashtable.h"
 #include "String.h"
+#include "Sysctl.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

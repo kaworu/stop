@@ -15,6 +15,7 @@
 #include "ProcessList.h"
 #include "CRT.h"
 #include "String.h"
+#include "Sysctl.h"
 #include "debug.h"
 
 

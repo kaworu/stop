@@ -10,6 +10,7 @@ in the source distribution for its full text.
 */
 
 #include "Meter.h"
+#include "Sysctl.h"
 
 #include <curses.h>
 

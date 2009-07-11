@@ -23,7 +23,7 @@ static inline void LoadAverageMeter_scan(double* one, double* five, double* fift
     struct loadavg *la;
     size_t size;
 
-    htop_sysctl("vm.loadavg", &size);
+    la = Sysctl.get("vm.loadavg", &size);
     if (size != sizeof(struct loadavg))
         assert(("wrong size for vm.loadavg", 0));
 

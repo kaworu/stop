@@ -29,6 +29,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
@@ -40,11 +41,24 @@
 #include "Sysctl.h"
 
 
+/*{
+typedef struct SysctlType_ SysctlType;
+
+typedef void * (*Sysctl_Get)(const char *name, size_t *size);
+typedef int (*Sysctl_GetInt)(const char *name);
+
+struct SysctlType_ {
+    Sysctl_Get    get;
+    Sysctl_GetInt getInt;
+};
+}*/
+
+
 static int name2oid(char *name, int *oidp);
 static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
 
 
-void * htop_sysctl(const char *name, size_t *size) {
+static void * get(const char *name, size_t *size) {
     int nlen, i, oid[CTL_MAXNAME];
     size_t len;
     u_int kind;
@@ -97,13 +111,13 @@ void * htop_sysctl(const char *name, size_t *size) {
 }
 
 
-int htop_sysctl_int(const char *name) {
+static int getInt(const char *name) {
     int i, *data;
     size_t size;
 
-    data = htop_sysctl(name, &size);
+    data = get(name, &size);
     if (size != sizeof(int))
-        assert(("bad size for htop_sysctl_int", 0));
+        assert(("bad size for int", 0));
 
     i = *data;
     free(data);
@@ -164,3 +178,8 @@ static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind) {
     return (0);
 }
 
+
+SysctlType Sysctl = {
+   .get = get,
+   .getInt = getInt,
+};

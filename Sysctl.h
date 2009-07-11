@@ -33,6 +33,8 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #include <assert.h>
@@ -42,12 +44,19 @@
 
 
 
+typedef struct SysctlType_ SysctlType;
+
+typedef void * (*Sysctl_Get)(const char *name, size_t *size);
+typedef int (*Sysctl_GetInt)(const char *name);
+
+struct SysctlType_ {
+    Sysctl_Get    get;
+    Sysctl_GetInt getInt;
+};
 
 
-void * htop_sysctl(const char *name, size_t *size);
 
 
-int htop_sysctl_int(const char *name);
 
 
 /* stuff stolen from sysctl(8) */
@@ -62,5 +71,7 @@ int htop_sysctl_int(const char *name);
  */
 
 
+
+extern SysctlType Sysctl;
 
 #endif

@@ -30,14 +30,14 @@ int BatteryMeter_attributes[] = {
 };
 
 static ACPresence chkIsOnline(void) {
-    if (htop_sysctl_int("hw.acpi.acline"))
+    if (Sysctl.getInt("hw.acpi.acline"))
         return (AC_PRESENT);
     else
         return (AC_ABSENT);
 }
 
 static double getBatData(void) {
-   return ((double)htop_sysctl_int("hw.acpi.battery.life"));
+   return ((double)Sysctl.getInt("hw.acpi.battery.life"));
 }
 
 static void BatteryMeter_setValues(Meter * this, char *buffer, int len) {

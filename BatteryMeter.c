@@ -124,10 +124,15 @@ static double getProcBatData(void) {
    return ((double)Sysctl.getInt("hw.acpi.battery.life"));
 }
 
+/* dummy */
+static double getSysBatData(void) {
+    return (0);
+}
+
 static void BatteryMeter_setValues(Meter * this, char *buffer, int len) {
    double percent = getProcBatData();
    if (percent == 0) {
-      //percent = getSysBatData();
+      percent = getSysBatData();
       if (percent == 0) {
          snprintf(buffer, len, "n/a");
          return;

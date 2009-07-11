@@ -20,20 +20,21 @@ int UptimeMeter_attributes[] = {
 };
 
 static void UptimeMeter_setValues(Meter* this, char* buffer, int len) {
-   double uptime;
-    struct timeval now, diff, *tv;
-    size_t size;
+   static struct timeval *boottime;
+   struct timeval now, diff;
 
-    tv = Sysctl.get("kern.boottime", &size);
-    if (size != sizeof(struct timeval))
-        assert(("wrong size for kern.boottime", 0));
+   if (boottime == NULL) {
+       size_t size;
+       boottime = Sysctl.get("kern.boottime", &size);
+       if (size != sizeof(struct timeval))
+           assert(("wrong size for kern.boottime", 0));
+   }
 
-    if (gettimeofday(&now, NULL) != 0)
-        assert(("gettimeofday failed", 0));
-    timersub(&now, tv, &diff);
-    free(tv);
+   if (gettimeofday(&now, NULL) != 0)
+       assert(("gettimeofday failed", 0));
+   timersub(&now, boottime, &diff);
 
-    uptime = (double)(diff.tv_sec + diff.tv_usec * 10e-6);
+   double uptime = (double)(diff.tv_sec + diff.tv_usec * 10e-7);
    int totalseconds = (int) ceil(uptime);
    int seconds = totalseconds % 60;
    int minutes = (totalseconds/60) % 60;

@@ -29,6 +29,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #include <assert.h>

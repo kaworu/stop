@@ -7,6 +7,7 @@ in the source distribution for its full text.
 
 #include "LoadAverageMeter.h"
 #include "Meter.h"
+#include "Sysctl.h"
 
 #include <curses.h>
 
@@ -19,13 +20,18 @@ int LoadAverageMeter_attributes[] = {
 int LoadMeter_attributes[] = { LOAD };
 
 static inline void LoadAverageMeter_scan(double* one, double* five, double* fifteen) {
-   int activeProcs, totalProcs, lastProc;
-   FILE *fd = fopen(PROCDIR "/loadavg", "r");
-   int read = fscanf(fd, "%lf %lf %lf %d/%d %d", one, five, fifteen,
-      &activeProcs, &totalProcs, &lastProc);
-   (void) read;
-   assert(read == 6);
-   fclose(fd);
+    struct loadavg *la;
+    size_t size;
+
+    htop_sysctl("vm.loadavg", &size);
+    if (size != sizeof(struct loadavg))
+        assert(("wrong size for vm.loadavg", 0));
+
+    *one     = (double)la->ldavg[0];
+    *five    = (double)la->ldavg[1];
+    *fifteen = (double)la->ldavg[2];
+
+    free(la);
 }
 
 static void LoadAverageMeter_setValues(Meter* this, char* buffer, int size) {

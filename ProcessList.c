@@ -220,6 +220,7 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    #endif
 
    int procs = Sysctl.getInt("kern.smp.cpus");
+   this->processorCount = procs;
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
 

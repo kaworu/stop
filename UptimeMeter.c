@@ -7,6 +7,7 @@ in the source distribution for its full text.
 
 #include "UptimeMeter.h"
 #include "Meter.h"
+#include "Sysctl.h"
 
 #include "ProcessList.h"
 
@@ -20,9 +21,19 @@ int UptimeMeter_attributes[] = {
 
 static void UptimeMeter_setValues(Meter* this, char* buffer, int len) {
    double uptime;
-   FILE* fd = fopen(PROCDIR "/uptime", "r");
-   fscanf(fd, "%lf", &uptime);
-   fclose(fd);
+    struct timeval now, diff, *tv;
+    size_t size;
+
+    tv = Sysctl.get("kern.boottime", &size);
+    if (size != sizeof(struct timeval))
+        assert(("wrong size for kern.boottime", 0));
+
+    if (gettimeofday(&now, NULL) != 0)
+        assert(("gettimeofday failed", 0));
+    timersub(&now, tv, &diff);
+    free(tv);
+
+    uptime = (double)(diff.tv_sec + diff.tv_usec * 10e-6);
    int totalseconds = (int) ceil(uptime);
    int seconds = totalseconds % 60;
    int minutes = (totalseconds/60) % 60;

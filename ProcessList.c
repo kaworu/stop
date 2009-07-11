@@ -219,8 +219,8 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    this->traceFile = fopen("/tmp/htop-proc-trace", "w");
    #endif
 
-   int procs = Sysctl.getInt("kern.smp.cpus");
-   this->processorCount = procs;
+   int procs = Sysctl.getInt("kern.smp.cpus") + 1; /* XXX: why procs = #CPU + 1 ? */
+   this->processorCount = procs - 1;
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
 

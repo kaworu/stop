@@ -37,6 +37,8 @@
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/vmmeter.h>
+#include <vm/vm_param.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,12 +49,23 @@
 typedef struct SysctlType_ SysctlType;
 
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
+typedef void * (*Sysctl_GetByOid)(int *oid, int oidlen, size_t *size);
+typedef int (*Sysctl_NameToMib)(const char *name, int *mibp, size_t *sizep);
 typedef int (*Sysctl_GetInt)(const char *name);
+typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
+typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 
 struct SysctlType_ {
-    Sysctl_Get    get;
-    Sysctl_GetInt getInt;
+    Sysctl_Get get;
+    Sysctl_GetByOid getbyoid;
+    Sysctl_NameToMib nametomib;
+    Sysctl_GetInt geti;
+    Sysctl_GetUnsignedInt getui;
+    Sysctl_GetUnsignedLong getul;
 };
+
+
+
 
 
 

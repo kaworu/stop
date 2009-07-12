@@ -219,7 +219,7 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    this->traceFile = fopen("/tmp/htop-proc-trace", "w");
    #endif
 
-   int procs = Sysctl.getInt("kern.smp.cpus") + 1; /* XXX: why procs = #CPU + 1 ? */
+   int procs = Sysctl.geti("kern.smp.cpus") + 1; /* XXX: why procs = #CPU + 1 ? */
    this->processorCount = procs - 1;
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
@@ -723,49 +723,54 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
 
 void ProcessList_scan(ProcessList* this) {
    unsigned long long int usertime, nicetime, systemtime, systemalltime, idlealltime, idletime, totaltime;
-   unsigned long long int swapFree;
 
-   FILE* status;
-   char buffer[128];
-   status = ProcessList_fopen(this, PROCMEMINFOFILE, "r");
-   assert(status != NULL);
-   int processors = this->processorCount;
-   while (!feof(status)) {
-      fgets(buffer, 128, status);
+   unsigned int pagesize = Sysctl.getui("vm.stats.vm.v_page_size");
+   size_t size = 0;
+   struct vmtotal *vmt = Sysctl.get("vm.vmtotal", &size);
+   if (size != sizeof(struct vmtotal))
+       assert(("wrong size for struct vmtotal", 0));
 
-      switch (buffer[0]) {
-      case 'M':
-         if (String_startsWith(buffer, "MemTotal:"))
-            ProcessList_read(this, buffer, "MemTotal: %llu kB", &this->totalMem);
-         else if (String_startsWith(buffer, "MemFree:"))
-            ProcessList_read(this, buffer, "MemFree: %llu kB", &this->freeMem);
-         else if (String_startsWith(buffer, "MemShared:"))
-            ProcessList_read(this, buffer, "MemShared: %llu kB", &this->sharedMem);
-         break;
-      case 'B':
-         if (String_startsWith(buffer, "Buffers:"))
-            ProcessList_read(this, buffer, "Buffers: %llu kB", &this->buffersMem);
-         break;
-      case 'C':
-         if (String_startsWith(buffer, "Cached:"))
-            ProcessList_read(this, buffer, "Cached: %llu kB", &this->cachedMem);
-         break;
-      case 'S':
-         if (String_startsWith(buffer, "SwapTotal:"))
-            ProcessList_read(this, buffer, "SwapTotal: %llu kB", &this->totalSwap);
-         if (String_startsWith(buffer, "SwapFree:"))
-            ProcessList_read(this, buffer, "SwapFree: %llu kB", &swapFree);
-         break;
-      }
+   this->totalMem   = Sysctl.getul("hw.physmem") / ONE_K;
+   this->usedMem    = (Sysctl.getui("vm.stats.vm.v_wire_count") * pagesize) / ONE_K;
+   this->freeMem    = this->totalMem - this->usedMem;
+   this->sharedMem  = vmt->t_rmshr;
+   this->buffersMem = 0; /* just like linprocfs module does */
+   this->cachedMem  = (Sysctl.getui("vm.stats.vm.v_cache_count") * pagesize) / ONE_K;
+   free(vmt);
+
+   /* yup. getting the swap usage is a pain */
+   if (Sysctl.geti("vm.swap_enabled")) {
+       int total = 0, used = 0;
+       struct xswdev *xsd;
+       int oid[3];
+       size_t oidsiz = 2, size;
+       int dmmax = Sysctl.geti("vm.dmmax");
+       int swapdevcount = Sysctl.geti("vm.nswapdev");
+
+       if (Sysctl.nametomib("vm.swap_info", oid, &oidsiz) == -1)
+           assert(("Sysctl.nametomib(\"wm.swap_info\") failed", 0));
+
+       for (int i = 0; i < swapdevcount; i++) {
+           oid[oidsiz] = i;
+           xsd = Sysctl.getbyoid(oid, oidsiz + 1, &size);
+
+           if (size != sizeof(struct xswdev))
+               assert(("wrong size for struct xswdev", 0));
+           if (xsd->xsw_version != XSWDEV_VERSION)
+               assert(("wrong version for struct xswdev", 0));
+           total += xsd->xsw_nblks - dmmax;
+           used  += xsd->xsw_used;
+           free(xsd);
+       }
+       this->totalSwap = total;
+       this->usedSwap  = used;
    }
 
-   this->usedMem = this->totalMem - this->freeMem;
-   this->usedSwap = this->totalSwap - swapFree;
-   fclose(status);
-
-   status = ProcessList_fopen(this, PROCSTATFILE, "r");
+   char *buffer[1024];
+   FILE *status = ProcessList_fopen(this, PROCSTATFILE, "r");
 
    assert(status != NULL);
+   int processors = this->processorCount;
    for (int i = 0; i <= processors; i++) {
       char buffer[256];
       int cpuid;

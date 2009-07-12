@@ -113,7 +113,7 @@ static unsigned long int parseBatInfo(const char *fileName, const unsigned short
 }
 
 static ACPresence chkIsOnline(void) {
-    if (Sysctl.getInt("hw.acpi.acline"))
+    if (Sysctl.geti("hw.acpi.acline"))
         return (AC_PRESENT);
     else
         return (AC_ABSENT);
@@ -121,7 +121,7 @@ static ACPresence chkIsOnline(void) {
 
 /* still named getProcBatData event if it doesn't use Proc, just to ease merge. */
 static double getProcBatData(void) {
-   return ((double)Sysctl.getInt("hw.acpi.battery.life"));
+   return ((double)Sysctl.geti("hw.acpi.battery.life"));
 }
 
 /* dummy */

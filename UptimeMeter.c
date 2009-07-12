@@ -20,7 +20,7 @@ int UptimeMeter_attributes[] = {
 };
 
 static void UptimeMeter_setValues(Meter* this, char* buffer, int len) {
-   static struct timeval *boottime;
+   static struct timeval *boottime = NULL;
    struct timeval now, diff;
 
    if (boottime == NULL) {

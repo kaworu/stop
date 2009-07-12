@@ -33,6 +33,8 @@
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/vmmeter.h>
+#include <vm/vm_param.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,11 +47,19 @@
 typedef struct SysctlType_ SysctlType;
 
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
+typedef void * (*Sysctl_GetByOid)(int *oid, int oidlen, size_t *size);
+typedef int (*Sysctl_NameToMib)(const char *name, int *mibp, size_t *sizep);
 typedef int (*Sysctl_GetInt)(const char *name);
+typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
+typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 
 struct SysctlType_ {
-    Sysctl_Get    get;
-    Sysctl_GetInt getInt;
+    Sysctl_Get get;
+    Sysctl_GetByOid getbyoid;
+    Sysctl_NameToMib nametomib;
+    Sysctl_GetInt geti;
+    Sysctl_GetUnsignedInt getui;
+    Sysctl_GetUnsignedLong getul;
 };
 }*/
 
@@ -58,37 +68,14 @@ static int name2oid(char *name, int *oidp);
 static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
 
 
-static void * get(const char *name, size_t *size) {
-    int nlen, i, oid[CTL_MAXNAME];
+static void * getbyoid(int *oid, int oidlen, size_t *size) {
+    int i;
+    char *data;
     size_t len;
-    u_int kind;
-    char *data, key[BUFSIZ];
-
-    /* check args */
-    if (name == NULL || *name == '\0')
-        assert(("NULL or empty sysctl key", 0));
-    if (size != NULL)
-        *size = 0;
-
-    if (strlcpy(key, name, sizeof(key)) >= sizeof(key))
-        assert(("sysctl key too long", 0));
-
-    /* get the oid */
-    nlen = name2oid(key, oid);
-    if (nlen < 0)
-        assert(("unknown iod", 0));
-
-    /* get the type */
-    if (oidfmt(oid, nlen, NULL, 0, &kind) != 0)
-        assert(("couldn't find format/kind of oid", 0));
-
-    /* check the type */
-    if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        assert(("can't handle CTLTYPE_NODE", 0));
 
     /* find an estimate of how much we need for this var */
     len = 0;
-    (void)sysctl(oid, nlen, NULL, &len, NULL, 0);
+    (void)sysctl(oid, oidlen, NULL, &len, NULL, 0);
     len += len; /* we want to be sure :-) */
 
     /* alloc */
@@ -97,7 +84,7 @@ static void * get(const char *name, size_t *size) {
         assert(("malloc(3) failed", 0));
 
     /* call sysctl */
-    i = sysctl(oid, nlen, data, &len, NULL, 0);
+    i = sysctl(oid, oidlen, data, &len, NULL, 0);
     if (i || !len)
         assert(("sysctl(3) failed", 0));
 
@@ -111,7 +98,39 @@ static void * get(const char *name, size_t *size) {
 }
 
 
-static int getInt(const char *name) {
+static void * get(const char *name, size_t *size) {
+    int oidlen, oid[CTL_MAXNAME];
+    char key[BUFSIZ];
+
+    /* check args */
+    if (name == NULL || *name == '\0')
+        assert(("NULL or empty sysctl key", 0));
+    if (size != NULL)
+        *size = 0;
+
+    if (strlcpy(key, name, sizeof(key)) >= sizeof(key))
+        assert(("sysctl key too long", 0));
+
+    /* get the oid */
+    oidlen = name2oid(key, oid);
+    if (oidlen < 0)
+        assert(("unknown iod", 0));
+
+#if 0
+    /* get the type */
+    if (oidfmt(oid, oidlen, NULL, 0, &kind) != 0)
+        assert(("couldn't find format/kind of oid", 0));
+
+    /* check the type */
+    if ((kind & CTLTYPE) == CTLTYPE_NODE)
+        assert(("can't handle CTLTYPE_NODE", 0));
+#endif
+
+    return (getbyoid(oid, oidlen, size));
+}
+
+
+static int geti(const char *name) {
     int i, *data;
     size_t size;
 
@@ -122,6 +141,34 @@ static int getInt(const char *name) {
     i = *data;
     free(data);
     return (i);
+}
+
+
+static unsigned int getui(const char *name) {
+    unsigned int i, *data;
+    size_t size;
+
+    data = get(name, &size);
+    if (size != sizeof(unsigned int))
+        assert(("bad size for unsigned int", 0));
+
+    i = *data;
+    free(data);
+    return (i);
+}
+
+
+static unsigned long getul(const char *name) {
+    unsigned long lu, *data;
+    size_t size;
+
+    data = get(name, &size);
+    if (size != sizeof(unsigned long))
+        assert(("bad size for unsigned long", 0));
+
+    lu = *data;
+    free(data);
+    return (lu);
 }
 
 
@@ -180,6 +227,10 @@ static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind) {
 
 
 SysctlType Sysctl = {
-   .get = get,
-   .getInt = getInt,
+   .get      = get,
+   .getbyoid = getbyoid,
+   .nametomib = sysctlnametomib,
+   .geti     = geti,
+   .getui    = getui,
+   .getul    = getul,
 };

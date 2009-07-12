@@ -465,49 +465,6 @@ static bool ProcessList_readStatusFile(ProcessList* this, Process* proc, char* d
    return true;
 }
 
-#ifdef HAVE_TASKSTATS
-
-static void ProcessList_readIoFile(ProcessList* this, Process* proc, char* dirname, char* name) {
-   char iofilename[MAX_NAME+1];
-   iofilename[MAX_NAME] = '\0';
-
-   snprintf(iofilename, MAX_NAME, "%s/%s/io", dirname, name);
-   FILE* io = ProcessList_fopen(this, iofilename, "r");
-   if (io) {
-      char buffer[256];
-      buffer[255] = '\0';
-      struct timeval tv;
-      gettimeofday(&tv,NULL);
-      unsigned long long now = tv.tv_sec*1000+tv.tv_usec/1000;
-      unsigned long long last_read = proc->io_read_bytes;
-      unsigned long long last_write = proc->io_write_bytes;
-      while (!feof(io)) {
-         char* ok = fgets(buffer, 255, io);
-         if (!ok)
-            break;
-         if (ProcessList_read(this, buffer, "rchar: %llu", &proc->io_rchar)) continue;
-         if (ProcessList_read(this, buffer, "wchar: %llu", &proc->io_wchar)) continue;
-         if (ProcessList_read(this, buffer, "syscr: %llu", &proc->io_syscr)) continue;
-         if (ProcessList_read(this, buffer, "syscw: %llu", &proc->io_syscw)) continue;
-         if (ProcessList_read(this, buffer, "read_bytes: %llu", &proc->io_read_bytes)) {
-            proc->io_rate_read_bps = 
-               ((double)(proc->io_read_bytes - last_read))/(((double)(now - proc->io_rate_read_time))/1000);
-            proc->io_rate_read_time = now;
-            continue;
-         }
-         if (ProcessList_read(this, buffer, "write_bytes: %llu", &proc->io_write_bytes)) {
-            proc->io_rate_write_bps = 
-               ((double)(proc->io_write_bytes - last_write))/(((double)(now - proc->io_rate_write_time))/1000);
-            proc->io_rate_write_time = now;
-            continue;
-         }
-         ProcessList_read(this, buffer, "cancelled_write_bytes: %llu", &proc->io_cancelled_write_bytes);
-      }
-      fclose(io);
-   }
-}
-
-#endif
 
 static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process* parent, float period) {
    DIR* dir;
@@ -523,11 +480,11 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
    for (int i = 0; i < count; i++) {
      kip = kipp + i;
      int pid = kip->ki_pid;
-     char name[100];
      FILE* status;
      char statusfilename[MAX_NAME+1];
      char command[PROCESS_COMM_LEN + 1];
 
+     char name[100];
      snprintf(name, sizeof(name), "%d", pid); /* compat */
      Process* process = NULL;
      Process* existingProcess = (Process*) Hashtable_get(this->processTable, pid);
@@ -546,18 +503,6 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
         }
      }
      process->tgid = parent ? parent->pid : pid;
-
-     if (showUserlandThreads && (!parent || pid != parent->pid)) {
-        char subdirname[MAX_NAME+1];
-        snprintf(subdirname, MAX_NAME, "%s/%s/task", dirname, name);
-
-        if (ProcessList_processEntries(this, subdirname, process, period))
-           continue;
-     }
-
-     #ifdef HAVE_TASKSTATS        
-     ProcessList_readIoFile(this, process, dirname, name);
-     #endif
 
      process->updated = true;
 
@@ -599,62 +544,6 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
 
      if(!existingProcess) {
         process->user = UsersTable_getRef(this->usersTable, process->st_uid);
-
-        #ifdef HAVE_OPENVZ
-        if (access("/proc/vz", R_OK) != 0) {
-           process->vpid = process->pid;
-           process->ctid = 0;
-        } else {
-           snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
-           status = ProcessList_fopen(this, statusfilename, "r");
-           if (status == NULL) 
-              goto errorReadingProcess;
-           num = ProcessList_fread(this, status, 
-              "%*u %*s %*c %*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %*u %*u %*u %*u %*u "
-              "%*u %*u %u %u",
-              &process->vpid, &process->ctid);
-           fclose(status);
-        }
-        #endif
-
-        #ifdef HAVE_VSERVER
-        snprintf(statusfilename, MAX_NAME, "%s/%s/status", dirname, name);
-        status = ProcessList_fopen(this, statusfilename, "r");
-        if (status == NULL) 
-           goto errorReadingProcess;
-        else {
-           char buffer[256];
-           process->vxid = 0;
-           while (!feof(status)) {
-              char* ok = fgets(buffer, 255, status);
-              if (!ok)
-                 break;
-
-              if (String_startsWith(buffer, "VxID:")) {
-                 int vxid;
-                 int ok = ProcessList_read(this, buffer, "VxID:\t%d", &vxid);
-                 if (ok >= 1) {
-                    process->vxid = vxid;
-                 }
-              }
-              #if defined HAVE_ANCIENT_VSERVER
-              else if (String_startsWith(buffer, "s_context:")) {
-                 int vxid;
-                 int ok = ProcessList_read(this, buffer, "s_context:\t%d", &vxid);
-                 if (ok >= 1) {
-                    process->vxid = vxid;
-                 }
-              }
-              #endif
-           }
-           fclose(status);
-        }
-        #endif
 
         snprintf(statusfilename, MAX_NAME, "%s/%s/cmdline", dirname, name);
         status = ProcessList_fopen(this, statusfilename, "r");
@@ -705,6 +594,7 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
         assert(Hashtable_count(this->processTable) == Vector_count(this->processes));
      }
    }
+   free(kipp);
    closedir(dir);
    return true;
 }

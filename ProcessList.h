@@ -157,9 +157,6 @@ int ProcessList_size(ProcessList* this);
 
 void ProcessList_sort(ProcessList* this);
 
-#ifdef HAVE_TASKSTATS
-
-#endif
 
 void ProcessList_scan(ProcessList* this);
 

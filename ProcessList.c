@@ -724,18 +724,17 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
 void ProcessList_scan(ProcessList* this) {
    unsigned long long int usertime, nicetime, systemtime, systemalltime, idlealltime, idletime, totaltime;
 
-   unsigned int pagesize = Sysctl.getui("vm.stats.vm.v_page_size");
    size_t size = 0;
    struct vmtotal *vmt = Sysctl.get("vm.vmtotal", &size);
    if (size != sizeof(struct vmtotal))
        assert(("wrong size for vm.vmtotal", 0));
 
    this->totalMem   = Sysctl.getul("hw.physmem") / ONE_K;
-   this->usedMem    = (Sysctl.getui("vm.stats.vm.v_wire_count") * pagesize) / ONE_K;
+   this->usedMem    = Sysctl.getui("vm.stats.vm.v_wire_count") * PAGE_SIZE_KB;
    this->freeMem    = this->totalMem - this->usedMem;
    this->sharedMem  = vmt->t_rmshr;
    this->buffersMem = 0; /* just like linprocfs module does */
-   this->cachedMem  = (Sysctl.getui("vm.stats.vm.v_cache_count") * pagesize) / ONE_K;
+   this->cachedMem  = Sysctl.getui("vm.stats.vm.v_cache_count") * PAGE_SIZE_KB;
    free(vmt);
 
    /* yup. getting the swap usage is a pain */
@@ -762,8 +761,8 @@ void ProcessList_scan(ProcessList* this) {
            used  += xsd->xsw_used;
            free(xsd);
        }
-       this->totalSwap = (total * pagesize) / ONE_K;
-       this->usedSwap  = (used  * pagesize) / ONE_K;
+       this->totalSwap = total * PAGE_SIZE_KB;
+       this->usedSwap  = used  * PAGE_SIZE_KB;
    }
 
 

@@ -762,8 +762,8 @@ void ProcessList_scan(ProcessList* this) {
            used  += xsd->xsw_used;
            free(xsd);
        }
-       this->totalSwap = total;
-       this->usedSwap  = used;
+       this->totalSwap = (total * pagesize) / ONE_K;
+       this->usedSwap  = (used * pagesize) / ONE_K;
    }
 
    char *buffer[1024];

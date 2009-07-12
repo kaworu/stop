@@ -518,204 +518,192 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
    if (!dir) return false;
    int processors = this->processorCount;
    bool showUserlandThreads = !this->hideUserlandThreads;
-   while ((entry = readdir(dir)) != NULL) {
-      char* name = entry->d_name;
-      int pid;
-      // filename is a number: process directory
-      pid = atoi(name);
+   struct kinfo_proc *kipp, *kip;
+   size_t count = Sysctl.getallproc(&kipp);
+   for (int i = 0; i < count; i++) {
+     kip = kipp + i;
+     int pid = kip->ki_pid;
+     char name[100];
+     FILE* status;
+     char statusfilename[MAX_NAME+1];
+     char command[PROCESS_COMM_LEN + 1];
 
-      // The RedHat kernel hides threads with a dot.
-      // I believe this is non-standard.
-      bool isThread = false;
-      if ((!this->hideThreads) && pid == 0 && name[0] == '.') {
-         char* tname = name + 1;
-         pid = atoi(tname);
-         if (pid > 0)
-            isThread = true;
-      }
+     snprintf(name, sizeof(name), "%d", pid); /* compat */
+     Process* process = NULL;
+     Process* existingProcess = (Process*) Hashtable_get(this->processTable, pid);
 
-      if (pid > 0) {
+     if (existingProcess) {
+        assert(Vector_indexOf(this->processes, existingProcess, Process_pidCompare) != -1);
+        process = existingProcess;
+        assert(process->pid == pid);
+     } else {
+        if (parent && parent->pid == pid) {
+           process = parent;
+        } else {
+           process = prototype;
+           assert(process->comm == NULL);
+           process->pid = pid;
+        }
+     }
+     process->tgid = parent ? parent->pid : pid;
 
-         FILE* status;
-         char statusfilename[MAX_NAME+1];
-         char command[PROCESS_COMM_LEN + 1];
+     if (showUserlandThreads && (!parent || pid != parent->pid)) {
+        char subdirname[MAX_NAME+1];
+        snprintf(subdirname, MAX_NAME, "%s/%s/task", dirname, name);
 
-         Process* process = NULL;
-         Process* existingProcess = (Process*) Hashtable_get(this->processTable, pid);
+        if (ProcessList_processEntries(this, subdirname, process, period))
+           continue;
+     }
 
-         if (existingProcess) {
-            assert(Vector_indexOf(this->processes, existingProcess, Process_pidCompare) != -1);
-            process = existingProcess;
-            assert(process->pid == pid);
-         } else {
-            if (parent && parent->pid == pid) {
-               process = parent;
-            } else {
-               process = prototype;
-               assert(process->comm == NULL);
-               process->pid = pid;
-            }
-         }
-         process->tgid = parent ? parent->pid : pid;
+     #ifdef HAVE_TASKSTATS        
+     ProcessList_readIoFile(this, process, dirname, name);
+     #endif
 
-         if (showUserlandThreads && (!parent || pid != parent->pid)) {
-            char subdirname[MAX_NAME+1];
-            snprintf(subdirname, MAX_NAME, "%s/%s/task", dirname, name);
-   
-            if (ProcessList_processEntries(this, subdirname, process, period))
-               continue;
-         }
+     process->updated = true;
 
-         #ifdef HAVE_TASKSTATS        
-         ProcessList_readIoFile(this, process, dirname, name);
-         #endif
+     if (!existingProcess)
+        if (! ProcessList_readStatusFile(this, process, dirname, name))
+           goto errorReadingProcess;
 
-         process->updated = true;
+     snprintf(statusfilename, MAX_NAME, "%s/%s/statm", dirname, name);
+     status = ProcessList_fopen(this, statusfilename, "r");
 
-         if (!existingProcess)
-            if (! ProcessList_readStatusFile(this, process, dirname, name))
-               goto errorReadingProcess;
+     if(!status) {
+        goto errorReadingProcess;
+     }
+     int num = ProcessList_fread(this, status, "%d %d %d %d %d %d %d",
+         &process->m_size, &process->m_resident, &process->m_share, 
+         &process->m_trs, &process->m_lrs, &process->m_drs, 
+         &process->m_dt);
 
-         snprintf(statusfilename, MAX_NAME, "%s/%s/statm", dirname, name);
-         status = ProcessList_fopen(this, statusfilename, "r");
+     fclose(status);
+     if(num != 7)
+        goto errorReadingProcess;
 
-         if(!status) {
-            goto errorReadingProcess;
-         }
-         int num = ProcessList_fread(this, status, "%d %d %d %d %d %d %d",
-             &process->m_size, &process->m_resident, &process->m_share, 
-             &process->m_trs, &process->m_lrs, &process->m_drs, 
-             &process->m_dt);
+     if (this->hideKernelThreads && process->m_size == 0)
+        goto errorReadingProcess;
 
-         fclose(status);
-         if(num != 7)
-            goto errorReadingProcess;
+     int lasttimes = (process->utime + process->stime);
 
-         if (this->hideKernelThreads && process->m_size == 0)
-            goto errorReadingProcess;
+     snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
+     
+     status = ProcessList_fopen(this, statusfilename, "r");
+     if (status == NULL)
+        goto errorReadingProcess;
 
-         int lasttimes = (process->utime + process->stime);
+     int success = ProcessList_readStatFile(this, process, status, command);
+     fclose(status);
+     if(!success) {
+        goto errorReadingProcess;
+     }
 
-         snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
-         
-         status = ProcessList_fopen(this, statusfilename, "r");
-         if (status == NULL)
-            goto errorReadingProcess;
+     if(!existingProcess) {
+        process->user = UsersTable_getRef(this->usersTable, process->st_uid);
 
-         int success = ProcessList_readStatFile(this, process, status, command);
-         fclose(status);
-         if(!success) {
-            goto errorReadingProcess;
-         }
+        #ifdef HAVE_OPENVZ
+        if (access("/proc/vz", R_OK) != 0) {
+           process->vpid = process->pid;
+           process->ctid = 0;
+        } else {
+           snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
+           status = ProcessList_fopen(this, statusfilename, "r");
+           if (status == NULL) 
+              goto errorReadingProcess;
+           num = ProcessList_fread(this, status, 
+              "%*u %*s %*c %*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %*u %*u %*u %*u %*u "
+              "%*u %*u %u %u",
+              &process->vpid, &process->ctid);
+           fclose(status);
+        }
+        #endif
 
-         if(!existingProcess) {
-            process->user = UsersTable_getRef(this->usersTable, process->st_uid);
+        #ifdef HAVE_VSERVER
+        snprintf(statusfilename, MAX_NAME, "%s/%s/status", dirname, name);
+        status = ProcessList_fopen(this, statusfilename, "r");
+        if (status == NULL) 
+           goto errorReadingProcess;
+        else {
+           char buffer[256];
+           process->vxid = 0;
+           while (!feof(status)) {
+              char* ok = fgets(buffer, 255, status);
+              if (!ok)
+                 break;
 
-            #ifdef HAVE_OPENVZ
-            if (access("/proc/vz", R_OK) != 0) {
-               process->vpid = process->pid;
-               process->ctid = 0;
-            } else {
-               snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
-               status = ProcessList_fopen(this, statusfilename, "r");
-               if (status == NULL) 
-                  goto errorReadingProcess;
-               num = ProcessList_fread(this, status, 
-                  "%*u %*s %*c %*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %*u %*u %*u %*u %*u "
-                  "%*u %*u %u %u",
-                  &process->vpid, &process->ctid);
-               fclose(status);
-            }
-            #endif
+              if (String_startsWith(buffer, "VxID:")) {
+                 int vxid;
+                 int ok = ProcessList_read(this, buffer, "VxID:\t%d", &vxid);
+                 if (ok >= 1) {
+                    process->vxid = vxid;
+                 }
+              }
+              #if defined HAVE_ANCIENT_VSERVER
+              else if (String_startsWith(buffer, "s_context:")) {
+                 int vxid;
+                 int ok = ProcessList_read(this, buffer, "s_context:\t%d", &vxid);
+                 if (ok >= 1) {
+                    process->vxid = vxid;
+                 }
+              }
+              #endif
+           }
+           fclose(status);
+        }
+        #endif
 
-            #ifdef HAVE_VSERVER
-            snprintf(statusfilename, MAX_NAME, "%s/%s/status", dirname, name);
-            status = ProcessList_fopen(this, statusfilename, "r");
-            if (status == NULL) 
-               goto errorReadingProcess;
-            else {
-               char buffer[256];
-               process->vxid = 0;
-               while (!feof(status)) {
-                  char* ok = fgets(buffer, 255, status);
-                  if (!ok)
-                     break;
+        snprintf(statusfilename, MAX_NAME, "%s/%s/cmdline", dirname, name);
+        status = ProcessList_fopen(this, statusfilename, "r");
+        if (!status) {
+           goto errorReadingProcess;
+        }
 
-                  if (String_startsWith(buffer, "VxID:")) {
-                     int vxid;
-                     int ok = ProcessList_read(this, buffer, "VxID:\t%d", &vxid);
-                     if (ok >= 1) {
-                        process->vxid = vxid;
-                     }
-                  }
-                  #if defined HAVE_ANCIENT_VSERVER
-                  else if (String_startsWith(buffer, "s_context:")) {
-                     int vxid;
-                     int ok = ProcessList_read(this, buffer, "s_context:\t%d", &vxid);
-                     if (ok >= 1) {
-                        process->vxid = vxid;
-                     }
-                  }
-                  #endif
-               }
-               fclose(status);
-            }
-            #endif
- 
-            snprintf(statusfilename, MAX_NAME, "%s/%s/cmdline", dirname, name);
-            status = ProcessList_fopen(this, statusfilename, "r");
-            if (!status) {
-               goto errorReadingProcess;
-            }
+        int amtRead = fread(command, 1, PROCESS_COMM_LEN - 1, status);
+        if (amtRead > 0) {
+           for (int i = 0; i < amtRead; i++)
+              if (command[i] == '\0' || command[i] == '\n')
+                 command[i] = ' ';
+           command[amtRead] = '\0';
+        }
+        command[PROCESS_COMM_LEN] = '\0';
+        process->comm = String_copy(command);
+        fclose(status);
+     }
 
-            int amtRead = fread(command, 1, PROCESS_COMM_LEN - 1, status);
-            if (amtRead > 0) {
-               for (int i = 0; i < amtRead; i++)
-                  if (command[i] == '\0' || command[i] == '\n')
-                     command[i] = ' ';
-               command[amtRead] = '\0';
-            }
-            command[PROCESS_COMM_LEN] = '\0';
-            process->comm = String_copy(command);
-            fclose(status);
-         }
+     int percent_cpu = (process->utime + process->stime - lasttimes) / 
+        period * 100.0;
+     process->percent_cpu = MAX(MIN(percent_cpu, processors*100.0), 0.0);
 
-         int percent_cpu = (process->utime + process->stime - lasttimes) / 
-            period * 100.0;
-         process->percent_cpu = MAX(MIN(percent_cpu, processors*100.0), 0.0);
+     process->percent_mem = (process->m_resident * PAGE_SIZE_KB) / 
+        (float)(this->totalMem) * 
+        100.0;
 
-         process->percent_mem = (process->m_resident * PAGE_SIZE_KB) / 
-            (float)(this->totalMem) * 
-            100.0;
+     this->totalTasks++;
+     if (process->state == 'R') {
+        this->runningTasks++;
+     }
 
-         this->totalTasks++;
-         if (process->state == 'R') {
-            this->runningTasks++;
-         }
+     if (!existingProcess) {
+        process = Process_clone(process);
+        ProcessList_add(this, process);
+     }
 
-         if (!existingProcess) {
-            process = Process_clone(process);
-            ProcessList_add(this, process);
-         }
+     continue;
 
-         continue;
-
-         // Exception handler.
-         errorReadingProcess: {
-            if (process->comm) {
-               free(process->comm);
-               process->comm = NULL;
-            }
-            if (existingProcess)
-               ProcessList_remove(this, process);
-            assert(Hashtable_count(this->processTable) == Vector_count(this->processes));
-         }
-      }
+     // Exception handler.
+     errorReadingProcess: {
+        if (process->comm) {
+           free(process->comm);
+           process->comm = NULL;
+        }
+        if (existingProcess)
+           ProcessList_remove(this, process);
+        assert(Hashtable_count(this->processTable) == Vector_count(this->processes));
+     }
    }
    closedir(dir);
    return true;

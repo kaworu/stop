@@ -37,6 +37,7 @@
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/user.h>
 #include <sys/vmmeter.h>
 #include <vm/vm_param.h>
 #include <assert.h>
@@ -55,8 +56,7 @@ typedef int (*Sysctl_GetInt)(const char *name);
 typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
 typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
-
-typedef int * (*Sysctl_PidToOid)(const int pid);
+typedef size_t (*Sysctl_getAllProc)(struct kinfo_proc **data);
 
 
 struct SysctlType_ {
@@ -65,11 +65,9 @@ struct SysctlType_ {
     Sysctl_GetInt geti;
     Sysctl_GetUnsignedInt getui;
     Sysctl_GetUnsignedLong getul;
+
     Sysctl_GetSwap getswap;
-
-
-    int *allProcOID;
-    Sysctl_PidToOid pidtooid;
+    Sysctl_getAllProc getallproc;
 };
 
 

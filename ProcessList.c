@@ -772,9 +772,6 @@ void ProcessList_scan(ProcessList* this) {
       int cpuid = i - 1;
       unsigned long long int ioWait, irq, softIrq, steal;
       ioWait = irq = softIrq = steal = 0;
-      // Dependending on your kernel version,
-      // 5, 7 or 8 of these fields will be set.
-      // The rest will remain at zero.
       if (i == 0) {
           cp_time = Sysctl.get("kern.cp_time", &size);
           if (size != (sizeof(unsigned long) * CPUSTATES))

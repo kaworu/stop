@@ -48,20 +48,28 @@
 
 typedef struct SysctlType_ SysctlType;
 
+
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
-typedef void * (*Sysctl_GetByOid)(int *oid, int oidlen, size_t *size);
-typedef int (*Sysctl_NameToMib)(const char *name, int *mibp, size_t *sizep);
+
 typedef int (*Sysctl_GetInt)(const char *name);
 typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
 typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
+typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
+
+typedef int * (*Sysctl_PidToOid)(const int pid);
+
 
 struct SysctlType_ {
     Sysctl_Get get;
-    Sysctl_GetByOid getbyoid;
-    Sysctl_NameToMib nametomib;
+
     Sysctl_GetInt geti;
     Sysctl_GetUnsignedInt getui;
     Sysctl_GetUnsignedLong getul;
+    Sysctl_GetSwap getswap;
+
+
+    int *allProcOID;
+    Sysctl_PidToOid pidtooid;
 };
 
 
@@ -70,6 +78,11 @@ struct SysctlType_ {
 
 
 
+
+
+
+
+extern SysctlType Sysctl;
 
 
 /* stuff stolen from sysctl(8) */
@@ -84,7 +97,5 @@ struct SysctlType_ {
  */
 
 
-
-extern SysctlType Sysctl;
 
 #endif

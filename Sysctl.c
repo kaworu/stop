@@ -46,20 +46,28 @@
 /*{
 typedef struct SysctlType_ SysctlType;
 
+
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
-typedef void * (*Sysctl_GetByOid)(int *oid, int oidlen, size_t *size);
-typedef int (*Sysctl_NameToMib)(const char *name, int *mibp, size_t *sizep);
+
 typedef int (*Sysctl_GetInt)(const char *name);
 typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
 typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
+typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
+
+typedef int * (*Sysctl_PidToOid)(const int pid);
+
 
 struct SysctlType_ {
     Sysctl_Get get;
-    Sysctl_GetByOid getbyoid;
-    Sysctl_NameToMib nametomib;
+
     Sysctl_GetInt geti;
     Sysctl_GetUnsignedInt getui;
     Sysctl_GetUnsignedLong getul;
+    Sysctl_GetSwap getswap;
+
+
+    int *allProcOID;
+    Sysctl_PidToOid pidtooid;
 };
 }*/
 
@@ -172,14 +180,54 @@ static unsigned long getul(const char *name) {
 }
 
 
+static struct xswdev * getswap(const int swapdevid) {
+    struct xswdev *xsd;
+    int oid[3];
+    size_t size = 0, oidsize = 2;
+
+    if (sysctlnametomib("vm.swap_info", oid, &oidsize) == -1)
+        assert(("sysctlnametomib failed for vm.swap_info", 0));
+    if (oidsize != 2)
+        assert(("wrong size for oid vm.swap_info", 0));
+
+    oid[oidsize] = swapdevid;
+    xsd = getbyoid(oid, oidsize + 1, &size);
+
+    if (size != sizeof(struct xswdev))
+        assert(("wrong size for vm.swap_info", 0));
+    if (xsd->xsw_version != XSWDEV_VERSION)
+        assert(("wrong version for vm.swap_info", 0));
+
+    return (xsd);
+}
+
+
+static int allProcOID[3] = {
+    CTL_KERN, KERN_PROC, KERN_PROC_PROC
+};
+
+/* returned value is static @#$! */
+static int _pidoid[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
+static int * pidtooid(const int pid) {
+
+    _pidoid[3] = pid;
+    return (_pidoid);
+}
+
+
 SysctlType Sysctl = {
    .get      = get,
-   .getbyoid = getbyoid,
-   .nametomib = sysctlnametomib,
-   .geti     = geti,
-   .getui    = getui,
-   .getul    = getul,
+
+    .geti    = geti,
+    .getui   = getui,
+    .getul   = getul,
+    .getswap = getswap,
+
+
+   .allProcOID = allProcOID,
+   .pidtooid   = pidtooid,
 };
+
 
 /* stuff stolen from sysctl(8) */
 

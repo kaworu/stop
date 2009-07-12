@@ -737,30 +737,19 @@ void ProcessList_scan(ProcessList* this) {
    this->cachedMem  = Sysctl.getui("vm.stats.vm.v_cache_count") * PAGE_SIZE_KB;
    free(vmt);
 
-   /* yup. getting the swap usage is a pain, inspired by kvm */
    if (Sysctl.geti("vm.swap_enabled")) {
        int total = 0, used = 0;
        struct xswdev *xsd;
-       int oid[3];
-       size_t oidsiz = 2, size;
+
        int dmmax = Sysctl.geti("vm.dmmax");
-       int swapdevcount = Sysctl.geti("vm.nswapdev");
-
-       if (Sysctl.nametomib("vm.swap_info", oid, &oidsiz) == -1)
-           assert(("Sysctl.nametomib(\"wm.swap_info\") failed", 0));
-
-       for (int i = 0; i < swapdevcount; i++) {
-           oid[oidsiz] = i;
-           xsd = Sysctl.getbyoid(oid, oidsiz + 1, &size);
-
-           if (size != sizeof(struct xswdev))
-               assert(("wrong size for vm.swap_info", 0));
-           if (xsd->xsw_version != XSWDEV_VERSION)
-               assert(("wrong version for vm.swap_info", 0));
+       int nswapdev = Sysctl.geti("vm.nswapdev");
+       for (int i = 0; i < nswapdev; i++) {
+           xsd = Sysctl.getswap(i);
            total += xsd->xsw_nblks - dmmax;
            used  += xsd->xsw_used;
            free(xsd);
        }
+
        this->totalSwap = total * PAGE_SIZE_KB;
        this->usedSwap  = used  * PAGE_SIZE_KB;
    }

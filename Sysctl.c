@@ -172,6 +172,15 @@ static unsigned long getul(const char *name) {
 }
 
 
+SysctlType Sysctl = {
+   .get      = get,
+   .getbyoid = getbyoid,
+   .nametomib = sysctlnametomib,
+   .geti     = geti,
+   .getui    = getui,
+   .getul    = getul,
+};
+
 /* stuff stolen from sysctl(8) */
 
 /*
@@ -225,12 +234,3 @@ static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind) {
     return (0);
 }
 
-
-SysctlType Sysctl = {
-   .get      = get,
-   .getbyoid = getbyoid,
-   .nametomib = sysctlnametomib,
-   .geti     = geti,
-   .getui    = getui,
-   .getul    = getul,
-};

@@ -737,7 +737,7 @@ void ProcessList_scan(ProcessList* this) {
    this->cachedMem  = Sysctl.getui("vm.stats.vm.v_cache_count") * PAGE_SIZE_KB;
    free(vmt);
 
-   /* yup. getting the swap usage is a pain */
+   /* yup. getting the swap usage is a pain, inspired by kvm */
    if (Sysctl.geti("vm.swap_enabled")) {
        int total = 0, used = 0;
        struct xswdev *xsd;

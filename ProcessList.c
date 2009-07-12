@@ -219,7 +219,7 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    this->traceFile = fopen("/tmp/htop-proc-trace", "w");
    #endif
 
-   int procs = Sysctl.geti("kern.smp.cpus") + 1; /* XXX: why procs = #CPU + 1 ? */
+   int procs = Sysctl.geti("kern.smp.cpus") + 1;
    this->processorCount = procs - 1;
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
@@ -728,7 +728,7 @@ void ProcessList_scan(ProcessList* this) {
    size_t size = 0;
    struct vmtotal *vmt = Sysctl.get("vm.vmtotal", &size);
    if (size != sizeof(struct vmtotal))
-       assert(("wrong size for struct vmtotal", 0));
+       assert(("wrong size for vm.vmtotal", 0));
 
    this->totalMem   = Sysctl.getul("hw.physmem") / ONE_K;
    this->usedMem    = (Sysctl.getui("vm.stats.vm.v_wire_count") * pagesize) / ONE_K;
@@ -755,36 +755,59 @@ void ProcessList_scan(ProcessList* this) {
            xsd = Sysctl.getbyoid(oid, oidsiz + 1, &size);
 
            if (size != sizeof(struct xswdev))
-               assert(("wrong size for struct xswdev", 0));
+               assert(("wrong size for vm.swap_info", 0));
            if (xsd->xsw_version != XSWDEV_VERSION)
-               assert(("wrong version for struct xswdev", 0));
+               assert(("wrong version for vm.swap_info", 0));
            total += xsd->xsw_nblks - dmmax;
            used  += xsd->xsw_used;
            free(xsd);
        }
        this->totalSwap = (total * pagesize) / ONE_K;
-       this->usedSwap  = (used * pagesize) / ONE_K;
+       this->usedSwap  = (used  * pagesize) / ONE_K;
    }
 
-   char *buffer[1024];
-   FILE *status = ProcessList_fopen(this, PROCSTATFILE, "r");
 
-   assert(status != NULL);
+#define T2J(x) (((x) * 100UL) / (stathz ? stathz : hz)) /* ticks to jiffies */
+   size_t cisize;
+   struct clockinfo *ci = Sysctl.get("kern.clockrate", &cisize);
+   if (cisize != sizeof(struct clockinfo))
+       assert(("wrong size for kern.clockrate", 0));
+   int hz = ci->hz;
+   int stathz = ci->stathz;
+   free(ci);
+
    int processors = this->processorCount;
+   unsigned long *cp_time = NULL;
+
    for (int i = 0; i <= processors; i++) {
-      char buffer[256];
-      int cpuid;
+      size_t size;
+      int cpuid = i - 1;
       unsigned long long int ioWait, irq, softIrq, steal;
       ioWait = irq = softIrq = steal = 0;
       // Dependending on your kernel version,
       // 5, 7 or 8 of these fields will be set.
       // The rest will remain at zero.
-      fgets(buffer, 255, status);
-      if (i == 0)
-         ProcessList_read(this, buffer, "cpu  %llu %llu %llu %llu %llu %llu %llu %llu", &usertime, &nicetime, &systemtime, &idletime, &ioWait, &irq, &softIrq, &steal);
+      if (i == 0) {
+          cp_time = Sysctl.get("kern.cp_time", &size);
+          if (size != (sizeof(unsigned long) * CPUSTATES))
+              assert(("wrong size for kern.cp_time", 0));
+          usertime   = T2J(cp_time[CP_USER]);
+          nicetime   = T2J(cp_time[CP_NICE]);
+          systemtime = T2J(cp_time[CP_SYS]);
+          idletime   = T2J(cp_time[CP_IDLE]);
+          free(cp_time);
+          cp_time = NULL;
+      }
       else {
-         ProcessList_read(this, buffer, "cpu%d %llu %llu %llu %llu %llu %llu %llu %llu", &cpuid, &usertime, &nicetime, &systemtime, &idletime, &ioWait, &irq, &softIrq, &steal);
-         assert(cpuid == i - 1);
+          if (cp_time == NULL) {
+              cp_time = Sysctl.get("kern.cp_times", &size);
+              if (size != (sizeof(unsigned long) * CPUSTATES * processors))
+                  assert(("wrong size for kern.cp_times", 0));
+          }
+          usertime   = T2J(cp_time[cpuid * CPUSTATES + CP_USER]);
+          nicetime   = T2J(cp_time[cpuid * CPUSTATES + CP_NICE]);
+          systemtime = T2J(cp_time[cpuid * CPUSTATES + CP_SYS]);
+          idletime   = T2J(cp_time[cpuid * CPUSTATES + CP_IDLE]);
       }
       // Fields existing on kernels >= 2.6
       // (and RHEL's patched kernel 2.4...)
@@ -825,8 +848,10 @@ void ProcessList_scan(ProcessList* this) {
       this->stealTime[i] = steal;
       this->totalTime[i] = totaltime;
    }
+   if (cp_time != NULL)
+       free(cp_time);
+
    float period = (float)this->totalPeriod[0] / processors;
-   fclose(status);
 
    // mark all process as "dirty"
    for (int i = 0; i < Vector_size(this->processes); i++) {

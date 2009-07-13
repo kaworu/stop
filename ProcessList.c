@@ -485,7 +485,7 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      char command[PROCESS_COMM_LEN + 1];
 
      char name[100];
-     snprintf(name, sizeof(name), "%d", pid); /* compat */
+     snprintf(name, sizeof(name) - 1, "%d", pid); /* compat */
      Process* process = NULL;
      Process* existingProcess = (Process*) Hashtable_get(this->processTable, pid);
 
@@ -507,23 +507,19 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      process->updated = true;
 
      if (!existingProcess)
-        if (! ProcessList_readStatusFile(this, process, dirname, name))
-           goto errorReadingProcess;
+         process->st_uid = kip->ki_ruid;
 
-     snprintf(statusfilename, MAX_NAME, "%s/%s/statm", dirname, name);
-     status = ProcessList_fopen(this, statusfilename, "r");
-
-     if(!status) {
-        goto errorReadingProcess;
-     }
-     int num = ProcessList_fread(this, status, "%d %d %d %d %d %d %d",
-         &process->m_size, &process->m_resident, &process->m_share, 
-         &process->m_trs, &process->m_lrs, &process->m_drs, 
-         &process->m_dt);
-
-     fclose(status);
-     if(num != 7)
-        goto errorReadingProcess;
+#define B2P(x) ((x) >> PAGE_SHIFT) /* bytes to pages */
+     /* FIXME: lrs and drs *were* inverted in respect to linprocfs.c in original code */
+     process->m_size     = B2P(kip->ki_size);
+     process->m_resident = kip->ki_rssize;
+     process->m_resident = kip->ki_rssize;
+     process->m_share    = 0; /* linprocfs.c */
+     process->m_trs      = kip->ki_tsize;
+     process->m_drs      = (kip->ki_dsize + kip->ki_ssize);
+     process->m_lrs      = B2P(kip->ki_size) - kip->ki_dsize -
+         kip->ki_ssize - kip->ki_tsize - 1;
+     process->m_dt       = 0; /* linprocfs.c */
 
      if (this->hideKernelThreads && process->m_size == 0)
         goto errorReadingProcess;

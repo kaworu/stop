@@ -3,8 +3,10 @@
 #ifndef HEADER_Sysctl
 #define HEADER_Sysctl
 /*
- * Based on:
- *      src/sbin/sysctl/sysctl.c
+ * Inspired by :
+ *      sysctl(8)   - /usr/src/sbin/sysctl
+ *      kvm(3)      - /usr/src/lib/libkvm
+ *      procstat(1) - /usr/src/usr.bin/procstat
  *
  * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.

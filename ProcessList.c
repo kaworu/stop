@@ -219,7 +219,7 @@ ProcessList* ProcessList_new(UsersTable* usersTable) {
    this->traceFile = fopen("/tmp/htop-proc-trace", "w");
    #endif
 
-   int procs = Sysctl.geti("kern.smp.cpus") + 1;
+   int procs = Sysctl.geti("kern.smp.cpus") + 1; /* we add +1 for the average of all CPUs */
    this->processorCount = procs - 1;
    
    ProcessList_allocatePerProcessorBuffers(this, procs);
@@ -482,7 +482,7 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      int pid = kip->ki_pid;
      FILE* status;
      char statusfilename[MAX_NAME+1];
-     char command[PROCESS_COMM_LEN + 1];
+     char *command;
 
      char name[100];
      snprintf(name, sizeof(name) - 1, "%d", pid); /* compat */
@@ -509,7 +509,6 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      if (!existingProcess)
          process->st_uid = kip->ki_ruid;
 
-#define B2P(x) ((x) >> PAGE_SHIFT) /* bytes to pages */
      /* FIXME: lrs and drs *were* inverted in respect to linprocfs.c in original code */
      process->m_size     = B2P(kip->ki_size);
      process->m_resident = kip->ki_rssize;
@@ -525,18 +524,94 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
         goto errorReadingProcess;
 
      int lasttimes = (process->utime + process->stime);
+     command = String_copy(kip->ki_comm);
 
-     snprintf(statusfilename, MAX_NAME, "%s/%s/stat", dirname, name);
-     
-     status = ProcessList_fopen(this, statusfilename, "r");
-     if (status == NULL)
-        goto errorReadingProcess;
+    /* stolen from top(1) */
+	/* generate "STATE" field */
+     static const char *state_abbrev[] = {
+	     "", "START", "RUN\0\0\0", "SLEEP", "STOP", "ZOMB", "WAIT", "LOCK"
+     };
+	 switch (kip->ki_stat) {
+	     case SRUN:
+		     if (kip->ki_oncpu != 0xff)
+			     sprintf(process->state, "CPU%d", kip->ki_oncpu);
+		     else
+			     strcpy(process->state, "RUN");
+		     break;
+	     case SLOCK:
+		     if (kip->ki_kiflag & KI_LOCKBLOCK) {
+			     sprintf(process->state, "*%.6s", kip->ki_lockname);
+			     break;
+		     }
+		     /* fall through */
+	     case SSLEEP:
+		     if (kip->ki_wmesg != NULL) {
+			     sprintf(process->state, "%.6s", kip->ki_wmesg);
+			     break;
+		     }
+		     /* FALLTHROUGH */
+	     default:
+		     if (kip->ki_stat >= 0 &&
+		             kip->ki_stat < sizeof(state_abbrev) / sizeof(*state_abbrev))
+			     sprintf(process->state, "%.6s", state_abbrev[kip->ki_stat]);
+		     else
+			     sprintf(process->state, "?%5d", kip->ki_stat);
+		     break;
+	 }
 
-     int success = ProcessList_readStatFile(this, process, status, command);
-     fclose(status);
-     if(!success) {
-        goto errorReadingProcess;
-     }
+     size_t cisize;
+     struct clockinfo *ci = Sysctl.get("kern.clockrate", &cisize);
+     if (cisize != sizeof(struct clockinfo))
+         assert(("wrong size for kern.clockrate", 0));
+     int hz = ci->hz;
+     int stathz = ci->stathz;
+     int tick = ci->tick;
+     free(ci);
+
+     process->jid         = kip->ki_jid;
+     process->ppid        = kip->ki_ppid;
+     process->pgrp        = kip->ki_pgid;
+     process->session     = kip->ki_sid;
+     process->tty_nr      = 0; /* linprocfs.c */
+     process->tpgid       = kip->ki_tpgid;
+     process->flags       = 0; /* linprocfs.c */
+#ifdef DEBUG
+     process->minflt      = kip->ki_rusage.ru_minflt;
+     process->cminflt     = kip->ki_rusage_ch.ru_minflt;
+     process->majflt      = kip->ki_rusage.ru_majflt;
+     process->cmajflt     = kip->ki_rusage_ch.ru_majflt;
+#endif
+     process->utime       = T2J(Sysctl.tvtohz(&kip->ki_rusage.ru_utime, hz, tick));
+     process->stime       = T2J(Sysctl.tvtohz(&kip->ki_rusage.ru_stime, hz, tick));
+     process->cutime      = T2J(Sysctl.tvtohz(&kip->ki_rusage_ch.ru_utime, hz, tick));
+     process->cstime      = T2J(Sysctl.tvtohz(&kip->ki_rusage_ch.ru_stime, hz, tick));
+     process->priority    = kip->ki_pri.pri_user;
+     process->nice        = kip->ki_nice; /* 19 (nicest) to -19 */
+     process->nlwp        = 0; /* linprocfs.c */
+#ifdef DEBUG
+     process->itrealvalue = 0; /* linprocfs.c */
+	/* XXX: starttime is not right, it is the _same_ for _every_ process.
+	   It should be the number of jiffies between system boot and process
+	   start. */
+	process->starttime  = T2J(Sysctl.tvtohz(&kip->ki_start, hz, tick));
+	process->vsize      = P2K(kp.ki_size);
+	process->rss        = kp.ki_rssize;
+	process->rlim       = kp.ki_rusage.ru_maxrss;
+	process->startcode  = 0; /* linprocfs.c */
+	process->endcode    = 0; /* linprocfs.c */
+	process->startstack = 0; /* linprocfs.c */
+	process->kstkesp    = 0; /* linprocfs.c */
+	process->kstkeip    = 0; /* linprocfs.c */
+	process->signal     = 0; /* linprocfs.c */
+	process->blocked    = 0; /* linprocfs.c */
+	process->sigignore  = 0; /* linprocfs.c */
+	process->sigcatch   = 0; /* linprocfs.c */
+	process->wchan      = 0; /* linprocfs.c */
+	process->nswap      = kp.ki_rusage.ru_nswap;
+	process->cnswap     = kp.ki_rusage_ch.ru_nswap;
+#endif
+	process->exit_signal = 0; /* linprocfs.c */
+	process->processor   = kip->ki_lastcpu;
 
      if(!existingProcess) {
         process->user = UsersTable_getRef(this->usersTable, process->st_uid);
@@ -568,7 +643,7 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
         100.0;
 
      this->totalTasks++;
-     if (process->state == 'R') {
+     if (strcmp(process->state, "RUN")  == 0) {
         this->runningTasks++;
      }
 
@@ -629,7 +704,6 @@ void ProcessList_scan(ProcessList* this) {
    }
 
 
-#define T2J(x) (((x) * 100UL) / (stathz ? stathz : hz)) /* ticks to jiffies */
    size_t cisize;
    struct clockinfo *ci = Sysctl.get("kern.clockrate", &cisize);
    if (cisize != sizeof(struct clockinfo))

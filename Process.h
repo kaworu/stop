@@ -72,9 +72,10 @@ typedef struct Process_ {
    bool updated;
 
    unsigned int pid;
+   unsigned int jid;
    char* comm;
    int indent;
-   char state;
+   char state[16];
    bool tag;
    unsigned int ppid;
    unsigned int pgrp;

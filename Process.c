@@ -70,9 +70,10 @@ typedef struct Process_ {
    bool updated;
 
    unsigned int pid;
+   unsigned int jid;
    char* comm;
    int indent;
-   char state;
+   char state[16];
    bool tag;
    unsigned int ppid;
    unsigned int pgrp;
@@ -179,7 +180,7 @@ char *Process_fieldNames[] = {
 };
 
 char *Process_fieldTitles[] = {
-   "", "  PID ", "Command ", "S ", " PPID ", " PGRP ", " SESN ",
+   "", "  PID ", "Command ", "  STATE  ", " PPID ", " PGRP ", " SESN ",
    "  TTY ", "TPGID ", "- ", "- ", "- ", "- ", "- ",
    " UTIME+  ", " STIME+  ",  "- ", "- ", "PRI ", " NI ", "- ",
    "- ", "- ", "- ", "- ", "- ", "- ", "- ",
@@ -334,8 +335,8 @@ static void Process_writeField(Process* this, RichString* str, ProcessField fiel
       }
    }
    case STATE: {
-      snprintf(buffer, n, "%c ", this->state);
-      attr = this->state == 'R'
+      snprintf(buffer, n, "%8s ", this->state);
+      attr = strcmp(this->state, "RUN") == 0
            ? CRT_colors[PROCESS_R_STATE]
            : attr;
       break;

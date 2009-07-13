@@ -7,6 +7,7 @@
  *      sysctl(8)   - /usr/src/sbin/sysctl
  *      kvm(3)      - /usr/src/lib/libkvm
  *      procstat(1) - /usr/src/usr.bin/procstat
+ *      top(1)      - /usr/src/usr.bin/top
  *
  * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -48,6 +49,10 @@
 #include <string.h>
 
 
+#define B2P(x) ((x) >> PAGE_SHIFT) /* bytes to pages */
+#define T2J(x) (((x) * 100UL) / (stathz ? stathz : hz)) /* ticks to jiffies */
+#define P2K(x) ((x) << (PAGE_SHIFT - 10))		/* pages to kbytes */
+
 
 typedef struct SysctlType_ SysctlType;
 
@@ -60,6 +65,8 @@ typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
 typedef size_t (*Sysctl_getAllProc)(struct kinfo_proc **data);
 
+typedef int (*TvToHz)(struct timeval *tv, int hz, int tick);
+
 
 struct SysctlType_ {
     Sysctl_Get get;
@@ -70,6 +77,8 @@ struct SysctlType_ {
 
     Sysctl_GetSwap getswap;
     Sysctl_getAllProc getallproc;
+
+    TvToHz tvtohz;
 };
 
 
@@ -81,6 +90,8 @@ struct SysctlType_ {
 
 
 
+
+/* stolen from /usr/src/sys/kern/kern_clock.c */
 
 extern SysctlType Sysctl;
 

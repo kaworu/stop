@@ -686,7 +686,7 @@ void ProcessList_scan(ProcessList* this) {
    free(ci);
 
    int processors = this->processorCount;
-   unsigned long *cp_time = NULL;
+   unsigned long *cp_time = NULL, cp_times = NULL;
 
    for (int i = 0; i <= processors; i++) {
       size_t size;
@@ -701,19 +701,21 @@ void ProcessList_scan(ProcessList* this) {
           nicetime   = T2J(cp_time[CP_NICE]);
           systemtime = T2J(cp_time[CP_SYS]);
           idletime   = T2J(cp_time[CP_IDLE]);
-          free(cp_time);
-          cp_time = NULL;
       }
       else {
-          if (cp_time == NULL) {
-              cp_time = Sysctl.get("kern.cp_times", &size);
-              if (size != (sizeof(unsigned long) * CPUSTATES * processors))
-                  assert(("wrong size for kern.cp_times", 0));
+          if (cp_times == NULL) {
+              if (processors == 1)
+                  cp_times = cp_time;
+              else {
+                  cp_times = Sysctl.get("kern.cp_times", &size);
+                  if (size != (sizeof(unsigned long) * CPUSTATES * processors))
+                      assert(("wrong size for kern.cp_times", 0));
+              }
           }
-          usertime   = T2J(cp_time[cpuid * CPUSTATES + CP_USER]);
-          nicetime   = T2J(cp_time[cpuid * CPUSTATES + CP_NICE]);
-          systemtime = T2J(cp_time[cpuid * CPUSTATES + CP_SYS]);
-          idletime   = T2J(cp_time[cpuid * CPUSTATES + CP_IDLE]);
+          usertime   = T2J(cp_times[cpuid * CPUSTATES + CP_USER]);
+          nicetime   = T2J(cp_times[cpuid * CPUSTATES + CP_NICE]);
+          systemtime = T2J(cp_times[cpuid * CPUSTATES + CP_SYS]);
+          idletime   = T2J(cp_times[cpuid * CPUSTATES + CP_IDLE]);
       }
       // Fields existing on kernels >= 2.6
       // (and RHEL's patched kernel 2.4...)
@@ -754,8 +756,9 @@ void ProcessList_scan(ProcessList* this) {
       this->stealTime[i] = steal;
       this->totalTime[i] = totaltime;
    }
-   if (cp_time != NULL)
-       free(cp_time);
+   if (cp_times != cp_time)
+     free(cp_times);
+   free(cp_time);
 
    float period = (float)this->totalPeriod[0] / processors;
 

@@ -686,7 +686,7 @@ void ProcessList_scan(ProcessList* this) {
    free(ci);
 
    int processors = this->processorCount;
-   unsigned long *cp_time = NULL, cp_times = NULL;
+   unsigned long *cp_time = NULL, *cp_times = NULL;
 
    for (int i = 0; i <= processors; i++) {
       size_t size;

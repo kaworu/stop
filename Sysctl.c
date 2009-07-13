@@ -255,8 +255,14 @@ static char * getcmdline(int pid) {
 	oid[3] = pid;
 
     i = sysctl(oid, 4, pargv, &size, NULL, 0);
-    if (i != 0 || size == 0 || pargv[size] != '\0')
+    if (i != 0 || pargv[size] != '\0')
         assert(("sysctl kern.proc.args failed", 0));
+
+    if (size == 0) {
+        free(pargv);
+        return (NULL);
+    }
+
     zero = pargv;
     while ((zero = strchr(zero, '\0')) != (pargv + size))
         *zero = ' ';

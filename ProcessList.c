@@ -606,6 +606,14 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      if(!existingProcess) {
         process->user = UsersTable_getRef(this->usersTable, process->st_uid);
         process->comm = Sysctl.getcmdline(pid);
+        if (process->comm == NULL) {
+        /* can't have argv :( use the command name instead */
+            char *comm = calloc(1 + strlen(kip->ki_comm) + 1 + 1, sizeof(char));
+            if (comm == NULL)
+                assert(("calloc failed", 0));
+            sprintf(comm, "[%s]", kip->ki_comm);
+            process->comm = comm;
+        }
      }
 
      int percent_cpu = (process->utime + process->stime - lasttimes) / 

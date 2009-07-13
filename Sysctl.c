@@ -240,18 +240,19 @@ static size_t getallproc(struct kinfo_proc **kippptr) {
 
 
 static char * getcmdline(int pid) {
-    size_t size = 1024 * 4;
+    unsigned long size = 0;
     char *pargv, *zero;
     int i, oid[4];
+
+    size = getul("kern.ps_arg_cache_limit");
+    pargv = calloc(size, sizeof(char));
+    if (pargv == NULL)
+        assert(("calloc failed", 0));
 
 	oid[0] = CTL_KERN;
 	oid[1] = KERN_PROC;
 	oid[2] = KERN_PROC_ARGS;
 	oid[3] = pid;
-
-    pargv = calloc(size, sizeof(char));
-    if (pargv == NULL)
-        assert(("calloc failed", 0));
 
     i = sysctl(oid, 4, pargv, &size, NULL, 0);
     if (i != 0 || size == 0 || pargv[size] != '\0')

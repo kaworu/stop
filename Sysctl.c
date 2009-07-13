@@ -63,6 +63,7 @@ typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
 typedef size_t (*Sysctl_getAllProc)(struct kinfo_proc **data);
 
+typedef char * (*Sysctl_getCmdline)(int pid);
 typedef int (*TvToHz)(struct timeval *tv, int hz, int tick);
 
 
@@ -76,6 +77,7 @@ struct SysctlType_ {
     Sysctl_GetSwap getswap;
     Sysctl_getAllProc getallproc;
 
+    Sysctl_getCmdline getcmdline;
     TvToHz tvtohz;
 };
 }*/
@@ -214,10 +216,12 @@ static struct xswdev * getswap(const int swapdevid) {
 static size_t getallproc(struct kinfo_proc **kippptr) {
     size_t size, count;
     struct kinfo_proc *kipp;
+    int oid[3];
 
-    int oid[3] = {
-        CTL_KERN, KERN_PROC, KERN_PROC_PROC
-    };
+    oid[0] = CTL_KERN;
+    oid[1] = KERN_PROC;
+    oid[2] = KERN_PROC_PROC;
+
     kipp = getbyoid(oid, 3, &size);
 
     if (size % sizeof(struct kinfo_proc) != 0)
@@ -232,6 +236,31 @@ static size_t getallproc(struct kinfo_proc **kippptr) {
 
     count = size / sizeof(struct kinfo_proc);
     return (count);
+}
+
+
+static char * getcmdline(int pid) {
+    size_t size = 1024 * 4;
+    char *pargv, *zero;
+    int i, oid[4];
+
+	oid[0] = CTL_KERN;
+	oid[1] = KERN_PROC;
+	oid[2] = KERN_PROC_ARGS;
+	oid[3] = pid;
+
+    pargv = calloc(size, sizeof(char));
+    if (pargv == NULL)
+        assert(("calloc failed", 0));
+
+    i = sysctl(oid, 4, pargv, &size, NULL, 0);
+    if (i != 0 || size == 0 || pargv[size] != '\0')
+        assert(("sysctl kern.proc.args failed", 0));
+    zero = pargv;
+    while ((zero = strchr(zero, '\0')) != (pargv + size))
+        *zero = ' ';
+
+    return (pargv);
 }
 
 
@@ -299,8 +328,9 @@ SysctlType Sysctl = {
 
     .getswap    = getswap,
     .getallproc = getallproc,
-    
-    .tvtohz = tvtohz,
+
+    .getcmdline = getcmdline,
+    .tvtohz     = tvtohz,
 };
 
 

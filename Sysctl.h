@@ -65,6 +65,7 @@ typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
 typedef size_t (*Sysctl_getAllProc)(struct kinfo_proc **data);
 
+typedef char * (*Sysctl_getCmdline)(int pid);
 typedef int (*TvToHz)(struct timeval *tv, int hz, int tick);
 
 
@@ -78,8 +79,10 @@ struct SysctlType_ {
     Sysctl_GetSwap getswap;
     Sysctl_getAllProc getallproc;
 
+    Sysctl_getCmdline getcmdline;
     TvToHz tvtohz;
 };
+
 
 
 

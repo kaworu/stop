@@ -467,25 +467,16 @@ static bool ProcessList_readStatusFile(ProcessList* this, Process* proc, char* d
 
 
 static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process* parent, float period) {
-   DIR* dir;
-   struct dirent* entry;
    Process* prototype = this->prototype;
 
-   dir = opendir(dirname);
-   if (!dir) return false;
    int processors = this->processorCount;
-   bool showUserlandThreads = !this->hideUserlandThreads;
+   bool showUserlandThreads = !this->hideUserlandThreads; /* TODO */
    struct kinfo_proc *kipp, *kip;
    size_t count = Sysctl.getallproc(&kipp);
    for (int i = 0; i < count; i++) {
      kip = kipp + i;
      int pid = kip->ki_pid;
-     FILE* status;
-     char statusfilename[MAX_NAME+1];
-     char *command;
 
-     char name[100];
-     snprintf(name, sizeof(name) - 1, "%d", pid); /* compat */
      Process* process = NULL;
      Process* existingProcess = (Process*) Hashtable_get(this->processTable, pid);
 
@@ -524,7 +515,6 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
         goto errorReadingProcess;
 
      int lasttimes = (process->utime + process->stime);
-     command = String_copy(kip->ki_comm);
 
     /* stolen from top(1) */
 	/* generate "STATE" field */
@@ -594,9 +584,9 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
 	   It should be the number of jiffies between system boot and process
 	   start. */
 	process->starttime  = T2J(Sysctl.tvtohz(&kip->ki_start, hz, tick));
-	process->vsize      = P2K(kp.ki_size);
-	process->rss        = kp.ki_rssize;
-	process->rlim       = kp.ki_rusage.ru_maxrss;
+	process->vsize      = P2K(kip->ki_size);
+	process->rss        = kip->ki_rssize;
+	process->rlim       = kip->ki_rusage.ru_maxrss;
 	process->startcode  = 0; /* linprocfs.c */
 	process->endcode    = 0; /* linprocfs.c */
 	process->startstack = 0; /* linprocfs.c */
@@ -607,31 +597,15 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
 	process->sigignore  = 0; /* linprocfs.c */
 	process->sigcatch   = 0; /* linprocfs.c */
 	process->wchan      = 0; /* linprocfs.c */
-	process->nswap      = kp.ki_rusage.ru_nswap;
-	process->cnswap     = kp.ki_rusage_ch.ru_nswap;
+	process->nswap      = kip->ki_rusage.ru_nswap;
+	process->cnswap     = kip->ki_rusage_ch.ru_nswap;
 #endif
 	process->exit_signal = 0; /* linprocfs.c */
 	process->processor   = kip->ki_lastcpu;
 
      if(!existingProcess) {
         process->user = UsersTable_getRef(this->usersTable, process->st_uid);
-
-        snprintf(statusfilename, MAX_NAME, "%s/%s/cmdline", dirname, name);
-        status = ProcessList_fopen(this, statusfilename, "r");
-        if (!status) {
-           goto errorReadingProcess;
-        }
-
-        int amtRead = fread(command, 1, PROCESS_COMM_LEN - 1, status);
-        if (amtRead > 0) {
-           for (int i = 0; i < amtRead; i++)
-              if (command[i] == '\0' || command[i] == '\n')
-                 command[i] = ' ';
-           command[amtRead] = '\0';
-        }
-        command[PROCESS_COMM_LEN] = '\0';
-        process->comm = String_copy(command);
-        fclose(status);
+        process->comm = Sysctl.getcmdline(pid);
      }
 
      int percent_cpu = (process->utime + process->stime - lasttimes) / 
@@ -666,7 +640,6 @@ static bool ProcessList_processEntries(ProcessList* this, char* dirname, Process
      }
    }
    free(kipp);
-   closedir(dir);
    return true;
 }
 

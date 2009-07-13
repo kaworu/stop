@@ -58,6 +58,7 @@ typedef enum ProcessField_ {
    #ifdef HAVE_TASKSTATS
    RCHAR, WCHAR, SYSCR, SYSCW, RBYTES, WBYTES, CNCLWB, IO_READ_RATE, IO_WRITE_RATE, IO_RATE,
    #endif
+   JID,
    LAST_PROCESSFIELD
 } ProcessField;
 
@@ -176,6 +177,7 @@ char *Process_fieldNames[] = {
    "RCHAR", "WCHAR", "SYSCR", "SYSCW", "RBYTES", "WBYTES", "CNCLWB",
    "IO_READ_RATE", "IO_WRITE_RATE", "IO_RATE",
 #endif
+   "JID",
 "*** report bug! ***"
 };
 
@@ -198,6 +200,7 @@ char *Process_fieldTitles[] = {
    "   RD_CHAR ", "   WR_CHAR ", "   RD_SYSC ", "   WR_SYSC ", "     IO_RD ", "     IO_WR ", " IO_CANCEL ",
    " IORR ", " IOWR ", "   IO ",
 #endif
+   " JID ",
 };
 
 static int Process_getuid = -1;
@@ -419,6 +422,10 @@ static void Process_writeField(Process* this, RichString* str, ProcessField fiel
    case IO_WRITE_RATE: Process_outputRate(this, str, attr, buffer, n, this->io_rate_write_bps); return;
    case IO_RATE: Process_outputRate(this, str, attr, buffer, n, this->io_rate_read_bps + this->io_rate_write_bps); return;
    #endif
+   case JID:
+     snprintf(buffer, n, "%4d ", this->jid);
+     attr = this->jid == 0 ? attr : CRT_colors[PROCESS_R_STATE]; /* FIXME */
+     break;
 
    default:
       snprintf(buffer, n, "- ");
@@ -597,6 +604,8 @@ int Process_compare(const void* v1, const void* v2) {
    case IO_WRITE_RATE: diff = p2->io_rate_write_bps - p1->io_rate_write_bps; goto test_diff;
    case IO_RATE: diff = (p2->io_rate_read_bps + p2->io_rate_write_bps) - (p1->io_rate_read_bps + p1->io_rate_write_bps); goto test_diff;
    #endif
+   case JID:
+      return (p1->jid - p2->jid);
 
    default:
       return (p1->pid - p2->pid);

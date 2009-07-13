@@ -60,6 +60,7 @@ typedef enum ProcessField_ {
    #ifdef HAVE_TASKSTATS
    RCHAR, WCHAR, SYSCR, SYSCW, RBYTES, WBYTES, CNCLWB, IO_READ_RATE, IO_WRITE_RATE, IO_RATE,
    #endif
+   JID,
    LAST_PROCESSFIELD
 } ProcessField;
 

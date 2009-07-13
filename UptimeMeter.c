@@ -34,7 +34,7 @@ static void UptimeMeter_setValues(Meter* this, char* buffer, int len) {
        assert(("gettimeofday failed", 0));
    timersub(&now, boottime, &diff);
 
-   double uptime = (double)(diff.tv_sec + diff.tv_usec * 10e-7);
+   double uptime = (double)(diff.tv_sec + diff.tv_usec * 1e-6);
    int totalseconds = (int) ceil(uptime);
    int seconds = totalseconds % 60;
    int minutes = (totalseconds/60) % 60;

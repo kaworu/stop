@@ -663,9 +663,10 @@ void ProcessList_scan(ProcessList* this) {
    this->usedMem    = Sysctl.getui("vm.stats.vm.v_wire_count") * PAGE_SIZE_KB;
    this->freeMem    = this->totalMem - this->usedMem;
    this->sharedMem  = vmt->t_rmshr;
-   this->buffersMem = 0; /* linprocfs.c */
+   this->buffersMem = Sysctl.geti("vfs.bufspace") / ONE_K;
    this->cachedMem  = Sysctl.getui("vm.stats.vm.v_cache_count") * PAGE_SIZE_KB;
    free(vmt);
+   this->usedMem   += this->buffersMem + this->cachedMem; /* htop expect this */
 
    if (Sysctl.geti("vm.swap_enabled")) {
        int total = 0, used = 0;

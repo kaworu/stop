@@ -663,7 +663,7 @@ void ProcessList_scan(ProcessList* this) {
    this->usedMem    = Sysctl.getui("vm.stats.vm.v_wire_count") * PAGE_SIZE_KB;
    this->freeMem    = this->totalMem - this->usedMem;
    this->sharedMem  = vmt->t_rmshr;
-   this->buffersMem = Sysctl.geti("vfs.bufspace") * ONE_K;
+   this->buffersMem = 0; /* linprocfs.c */
    this->cachedMem  = Sysctl.getui("vm.stats.vm.v_cache_count") * PAGE_SIZE_KB;
    free(vmt);
 

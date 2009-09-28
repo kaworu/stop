@@ -58,6 +58,7 @@ typedef struct SysctlType_ SysctlType;
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
 
 typedef int (*Sysctl_GetInt)(const char *name);
+typedef long (*Sysctl_GetLong)(const char *name);
 typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
 typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
@@ -71,6 +72,7 @@ struct SysctlType_ {
     Sysctl_Get get;
 
     Sysctl_GetInt geti;
+    Sysctl_GetLong getl;
     Sysctl_GetUnsignedInt getui;
     Sysctl_GetUnsignedLong getul;
 
@@ -156,6 +158,20 @@ static int geti(const char *name) {
     data = get(name, &size);
     if (size != sizeof(int))
         assert(("bad size for int", 0));
+
+    i = *data;
+    free(data);
+    return (i);
+}
+
+
+static long getl(const char *name) {
+    long i, *data;
+    size_t size;
+
+    data = get(name, &size);
+    if (size != sizeof(long))
+        assert(("bad size for long", 0));
 
     i = *data;
     free(data);
@@ -330,6 +346,7 @@ SysctlType Sysctl = {
     .get      = get,
 
     .geti    = geti,
+    .getl    = getl,
     .getui   = getui,
     .getul   = getul,
 

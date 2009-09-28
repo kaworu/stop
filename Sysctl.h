@@ -60,6 +60,7 @@ typedef struct SysctlType_ SysctlType;
 typedef void * (*Sysctl_Get)(const char *name, size_t *size);
 
 typedef int (*Sysctl_GetInt)(const char *name);
+typedef long (*Sysctl_GetLong)(const char *name);
 typedef unsigned int (*Sysctl_GetUnsignedInt)(const char *name);
 typedef unsigned long (*Sysctl_GetUnsignedLong)(const char *name);
 typedef struct xswdev * (*Sysctl_GetSwap)(const int swapdevid);
@@ -73,6 +74,7 @@ struct SysctlType_ {
     Sysctl_Get get;
 
     Sysctl_GetInt geti;
+    Sysctl_GetLong getl;
     Sysctl_GetUnsignedInt getui;
     Sysctl_GetUnsignedLong getul;
 
@@ -82,6 +84,7 @@ struct SysctlType_ {
     Sysctl_getCmdline getcmdline;
     TvToHz tvtohz;
 };
+
 
 
 

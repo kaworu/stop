@@ -46,7 +46,7 @@ of the currently highlighted one.
 "Untag" all processes (remove all tags added with the Space key).
 .TP
 .B s
-Trace process system calls: if strace(1) is installed, pressing this key
+Trace process system calls: if truss(1) is installed, pressing this key
 will attach it to the currently selected process, presenting a live
 update of system calls issued by the process.
 .TP

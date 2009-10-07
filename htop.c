@@ -121,7 +121,7 @@ static void showHelp(ProcessList* pl) {
       mvaddstr(18, 0, "                                         F4 I: invert sort order");
    mvaddstr(19, 0, "   F2 S: setup                           F6 >: select sort column");
    mvaddstr(20, 0, "   F1 h: show this help screen              l: list open files with lsof");
-   mvaddstr(21, 0, "  F10 q: quit                               s: trace syscalls with strace");
+   mvaddstr(21, 0, "  F10 q: quit                               s: trace syscalls with truss");
 
    attrset(CRT_colors[HELP_BOLD]);
    mvaddstr( 9, 0, " Arrows"); mvaddstr( 9,40, " F5 t");

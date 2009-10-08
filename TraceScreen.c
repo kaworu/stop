@@ -73,15 +73,16 @@ void TraceScreen_run(TraceScreen* this) {
       dup2(fdpair[1], STDERR_FILENO);
       fcntl(fdpair[1], F_SETFL, O_NONBLOCK);
       sprintf(buffer, "%d", this->process->pid);
+      /* use truss(1) instead of strace(1) */
       execlp("truss", "truss", "-p", buffer, NULL);
       const char* message = "Could not execute 'truss'. Please make sure it is available in your $PATH.";
       write(fdpair[1], message, strlen(message));
       exit(1);
    }
    fcntl(fdpair[0], F_SETFL, O_NONBLOCK);
-   FILE* truss = fdopen(fdpair[0], "r");
+   FILE* strace = fdopen(fdpair[0], "r");
    Panel* panel = this->display;
-   int fd_truss = fileno(truss);
+   int fd_strace = fileno(strace);
    TraceScreen_draw(this);
    CRT_disableDelay();
    bool contLine = false;
@@ -90,13 +91,13 @@ void TraceScreen_run(TraceScreen* this) {
    while (looping) {
       fd_set fds;
       FD_ZERO(&fds);
-      FD_SET(fd_truss, &fds);
+      FD_SET(fd_strace, &fds);
       struct timeval tv;
       tv.tv_sec = 0; tv.tv_usec = 500;
-      int ready = select(fd_truss+1, &fds, NULL, NULL, &tv);
+      int ready = select(fd_strace+1, &fds, NULL, NULL, &tv);
       int nread = 0;
       if (ready > 0)
-         nread = fread(buffer, 1, 1000, truss);
+         nread = fread(buffer, 1, 1000, strace);
       if (nread && this->tracing) {
          char* line = buffer;
          buffer[nread] = '\0';
@@ -165,6 +166,6 @@ void TraceScreen_run(TraceScreen* this) {
    }
    kill(child, SIGTERM);
    waitpid(child, NULL, 0);
-   fclose(truss);
+   fclose(strace);
    CRT_enableDelay();
 }

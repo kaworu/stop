@@ -9,31 +9,12 @@ Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-#ifndef CONFIG_H
-#define CONFIG_H
-#include "config.h"
-#endif
-
-#include "Process.h"
 #include "Vector.h"
-#include "UsersTable.h"
 #include "Hashtable.h"
-#include "String.h"
-#include "Sysctl.h"
-
+#include "UsersTable.h"
+#include "Panel.h"
+#include "Process.h"
 #include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <sys/utsname.h>
-#include <stdarg.h>
-
-#include "debug.h"
-#include <assert.h>
 
 #ifndef PROCDIR
 #define PROCDIR "/proc"
@@ -55,50 +36,80 @@ in the source distribution for its full text.
 #define MAX_READ 2048
 #endif
 
-#ifndef PER_PROCESSOR_FIELDS
-#define PER_PROCESSOR_FIELDS 22
+#ifndef ProcessList_cpuId
+#define ProcessList_cpuId(pl, cpu) ((pl)->countCPUsFromZero ? (cpu) : (cpu)+1)
 #endif
 
+typedef enum TreeStr_ {
+   TREE_STR_HORZ,
+   TREE_STR_VERT,
+   TREE_STR_RTEE,
+   TREE_STR_BEND,
+   TREE_STR_TEND,
+   TREE_STR_OPEN,
+   TREE_STR_SHUT,
+   TREE_STR_COUNT
+} TreeStr;
 
+typedef enum TreeType_ {
+   TREE_TYPE_AUTO,
+   TREE_TYPE_ASCII,
+   TREE_TYPE_UTF8,
+} TreeType;
 
-#ifdef DEBUG_PROC
-typedef int(*vxscanf)(void*, const char*, va_list);
-#endif
+typedef struct CPUData_ {
+   unsigned long long int totalTime;
+   unsigned long long int userTime;
+   unsigned long long int systemTime;
+   unsigned long long int systemAllTime;
+   unsigned long long int idleAllTime;
+   unsigned long long int idleTime;
+   unsigned long long int niceTime;
+   unsigned long long int ioWaitTime;
+   unsigned long long int irqTime;
+   unsigned long long int softIrqTime;
+   unsigned long long int stealTime;
+   unsigned long long int guestTime;
+   
+   unsigned long long int totalPeriod;
+   unsigned long long int userPeriod;
+   unsigned long long int systemPeriod;
+   unsigned long long int systemAllPeriod;
+   unsigned long long int idleAllPeriod;
+   unsigned long long int idlePeriod;
+   unsigned long long int nicePeriod;
+   unsigned long long int ioWaitPeriod;
+   unsigned long long int irqPeriod;
+   unsigned long long int softIrqPeriod;
+   unsigned long long int stealPeriod;
+   unsigned long long int guestPeriod;
+} CPUData;
 
 typedef struct ProcessList_ {
    Vector* processes;
    Vector* processes2;
    Hashtable* processTable;
-   Process* prototype;
    UsersTable* usersTable;
 
-   int processorCount;
+   Panel* panel;
+   int following;
+   bool userOnly;
+   uid_t userId;
+   bool filtering;
+   const char* incFilter;
+   Hashtable* pidWhiteList;
+
+   int cpuCount;
    int totalTasks;
+   int userlandThreads;
+   int kernelThreads;
    int runningTasks;
 
-   // Must match number of PER_PROCESSOR_FIELDS constant
-   unsigned long long int* totalTime;
-   unsigned long long int* userTime;
-   unsigned long long int* systemTime;
-   unsigned long long int* systemAllTime;
-   unsigned long long int* idleAllTime;
-   unsigned long long int* idleTime;
-   unsigned long long int* niceTime;
-   unsigned long long int* ioWaitTime;
-   unsigned long long int* irqTime;
-   unsigned long long int* softIrqTime;
-   unsigned long long int* stealTime;
-   unsigned long long int* totalPeriod;
-   unsigned long long int* userPeriod;
-   unsigned long long int* systemPeriod;
-   unsigned long long int* systemAllPeriod;
-   unsigned long long int* idleAllPeriod;
-   unsigned long long int* idlePeriod;
-   unsigned long long int* nicePeriod;
-   unsigned long long int* ioWaitPeriod;
-   unsigned long long int* irqPeriod;
-   unsigned long long int* softIrqPeriod;
-   unsigned long long int* stealPeriod;
+   #ifdef HAVE_LIBHWLOC
+   hwloc_topology_t topology;
+   bool topologyOk;
+   #endif
+   CPUData* cpus;
 
    unsigned long long int totalMem;
    unsigned long long int usedMem;
@@ -115,6 +126,8 @@ typedef struct ProcessList_ {
    int direction;
    bool hideThreads;
    bool shadowOtherUsers;
+   bool showThreadNames;
+   bool showingThreadNames;
    bool hideKernelThreads;
    bool hideUserlandThreads;
    bool treeView;
@@ -122,44 +135,56 @@ typedef struct ProcessList_ {
    bool highlightMegabytes;
    bool highlightThreads;
    bool detailedCPUTime;
-   #ifdef DEBUG_PROC
-   FILE* traceFile;
-   #endif
+   bool countCPUsFromZero;
+   bool updateProcessNames;
+   const char **treeStr;
 
 } ProcessList;
 
-#ifdef DEBUG_PROC
 
-#define ProcessList_read(this, buffer, format, ...) ProcessList_xread(this, (vxscanf) vsscanf, buffer, format, ## __VA_ARGS__ )
-#define ProcessList_fread(this, file, format, ...)  ProcessList_xread(this, (vxscanf) vfscanf, file, format, ## __VA_ARGS__ )
+extern const char *ProcessList_treeStrAscii[TREE_STR_COUNT];
 
-#else
+extern const char *ProcessList_treeStrUtf8[TREE_STR_COUNT];
 
-#ifndef ProcessList_read
-#define ProcessList_fopen(this, path, mode) fopen(path, mode)
-#define ProcessList_read(this, buffer, format, ...) sscanf(buffer, format, ## __VA_ARGS__ )
-#define ProcessList_fread(this, file, format, ...) fscanf(file, format, ## __VA_ARGS__ )
-#endif
-
-#endif
-
-ProcessList* ProcessList_new(UsersTable* usersTable);
+ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList);
 
 void ProcessList_delete(ProcessList* this);
 
+void ProcessList_setPanel(ProcessList* this, Panel* panel);
+
 void ProcessList_invertSortOrder(ProcessList* this);
 
-RichString ProcessList_printHeader(ProcessList* this);
+void ProcessList_printHeader(ProcessList* this, RichString* header);
 
-Process* ProcessList_get(ProcessList* this, int index);
+Process* ProcessList_get(ProcessList* this, int idx);
 
 int ProcessList_size(ProcessList* this);
 
 void ProcessList_sort(ProcessList* this);
 
+#ifdef HAVE_TASKSTATS
+
+#endif
+
+#ifdef HAVE_OPENVZ
+
+#endif
+
+#ifdef HAVE_CGROUP
+
+#endif
+
+#ifdef HAVE_VSERVER
+
+#endif
+
 
 void ProcessList_scan(ProcessList* this);
 
 ProcessField ProcessList_keyAt(ProcessList* this, int at);
+
+void ProcessList_expandTree(ProcessList* this);
+
+void ProcessList_rebuildPanel(ProcessList* this, bool flags, int following, bool userOnly, uid_t userId, bool filtering, const char* incFilter);
 
 #endif

@@ -1,4 +1,83 @@
 
+What's new in version 1.0.2
+
+* Add IO priority support ('i' key)
+* Avoid deleting .htoprc if it is a symlink
+* Fail gracefully when /proc is not mounted
+  (thanks to Philipp Hagemeister)
+* Option to update process names on every refresh
+  (thanks to Rob Hoelz)
+* BUGFIX: Fix crashes when process list is empty
+
+What's new in version 1.0.1
+
+* Move .htoprc to XDG-compliant path ~/.config/htop/htoprc,
+  respecting $XDG_CONFIG_HOME 
+  (thanks to Hadzhimurad Ustarkhan for the suggestion.)
+* Safer behavior on the kill screen, to make it harder to kill the wrong process.
+* Fix for building in FreeBSD 8.2
+  (thanks to Trond Endrestol)
+* BUGFIX: behavior of 'F' (follow) key was broken, also affecting the
+  persistence of mouse selections.
+* BUGFIX: keep main panel up-to-date when running the screen manager,
+  to fix crash when processes die while on the F9/Kill screen.
+
+What's new in version 1.0
+
+* Performance improvements
+* Support for splitting CPU meters into two or four columns
+  (thanks to Wim Heirman)
+* Switch from PLPA, which is now deprecated, to HWLOC.
+* Bring back support for native Linux sched_setaffinity,
+  so we don't have to use HWLOC where we don't need to.
+* Support for typing in user names and column fields in selection panels.
+* Support for UTF-8 tree drawing
+  (thanks to Bin Guo)
+* Option for counting CPUs from zero
+  (thanks to Sean Noonan)
+* Meters update in every screen (no longer halting while on Setup, etc.)
+* Stricter checks for command-line options
+  (thanks to Sebastian Pipping)
+* Incremental filtering
+  (thanks to Seth Heeren for the idea and initial implementation)
+* Try harder to find the ncurses header
+  (thanks to Moritz Barsnick)
+* Man page updates
+  (thanks to Vincent Launchbury)
+* BUGFIX: Support larger numbers for process times.
+  (thanks to Tristan Nakagawa for the report.)
+* BUGFIX: Segfault in BarMeterMode_draw() for small terminal widths
+  (patch by Sebastian Pipping)
+
+What's new in version 0.9
+
+* Add support for "steal"/guest CPU time measurement
+  in virtualization environments
+* Expand and collapse subtrees using '+' and '-' when in tree-view
+* Support for cgroups
+  (thanks to Guillaume Zitta and Daniel Lezcano)
+* Show custom thread names
+  (thanks to Anders Torger)
+* Add support for STARTTIME field
+* Upgrade PLPA to version 1.3.2
+* Fix license terms with regard to PLPA
+  (thanks to Tom Callaway)
+* getopt-based long options and --no-color
+  (thanks to Vincent Launchbury)
+* BUGFIX: Fix display of nan% in CPU meters
+  (thanks to Steven Hampson)
+* BUGFIX: Fix memory leak
+  (thanks to Pavol Rusnak)
+* Add Bash/emacs style navigation keys
+  (thanks to Daniel Schuler)
+* Improve battery meter support
+  (thanks to Richard W.)
+* BUGFIX: Fix IO-wait color in "Black on White" scheme
+* BUGFIX: Fix search by process name when list is filtered by user.
+  (thanks to Sergej Pupykin for the report.)
+* BUGFIX: Fix alignment for display of memory values above 100G (sign of the times!)
+  (thanks to Jan van Haarst for the report.)
+
 What's new in version 0.8.3
 
 * BUGFIX: Fix crash on F6 key

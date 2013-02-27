@@ -4,26 +4,15 @@
 #define HEADER_Panel
 /*
 htop - Panel.h
-(C) 2004-2006 Hisham H. Muhammad
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-#include "Object.h"
-#include "Vector.h"
-#include "CRT.h"
-#include "RichString.h"
-#include "ListItem.h"
-
-#include <math.h>
-#include <stdbool.h>
-
-#include "debug.h"
-#include <assert.h>
-
-#include <curses.h>
 //#link curses
 
+#include "Object.h"
+#include "Vector.h"
 
 typedef struct Panel_ Panel;
 
@@ -49,6 +38,7 @@ struct Panel_ {
    bool needsRedraw;
    RichString header;
    Panel_EventHandler eventHandler;
+   char* eventHandlerBuffer;
 };
 
 
@@ -65,6 +55,10 @@ extern char* PANEL_CLASS;
 #define PANEL_CLASS NULL
 #endif
 
+#define KEY_CTRLN      0016            /* control-n key */
+#define KEY_CTRLP      0020            /* control-p key */
+#define KEY_CTRLF      0006            /* control-f key */
+#define KEY_CTRLB      0002            /* control-b key */
 
 Panel* Panel_new(int x, int y, int w, int h, char* type, bool owner, Object_Compare compare);
 
@@ -74,9 +68,9 @@ void Panel_init(Panel* this, int x, int y, int w, int h, char* type, bool owner)
 
 void Panel_done(Panel* this);
 
-extern void Panel_setRichHeader(Panel* this, RichString header);
+RichString* Panel_getHeader(Panel* this);
 
-extern void Panel_setHeader(Panel* this, char* header);
+extern void Panel_setHeader(Panel* this, const char* header);
 
 void Panel_setEventHandler(Panel* this, Panel_EventHandler eh);
 
@@ -111,5 +105,7 @@ void Panel_setSelected(Panel* this, int selected);
 void Panel_draw(Panel* this, bool focus);
 
 bool Panel_onKey(Panel* this, int key);
+
+HandlerResult Panel_selectByTyping(Panel* this, int ch);
 
 #endif

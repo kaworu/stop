@@ -2,16 +2,20 @@
 
 #ifndef HEADER_AffinityPanel
 #define HEADER_AffinityPanel
-
+/*
+htop - AffinityPanel.h
+(C) 2004-2011 Hisham H. Muhammad
+Released under the GNU GPL, see the COPYING file
+in the source distribution for its full text.
+*/
 
 #include "Panel.h"
-#include "CheckItem.h"
+#include "Affinity.h"
+#include "ProcessList.h"
+#include "ListItem.h"
 
-#include "debug.h"
-#include <assert.h>
+Panel* AffinityPanel_new(ProcessList* pl, Affinity* affinity);
 
-Panel* AffinityPanel_new(int processorCount, unsigned long mask);
-
-unsigned long AffinityPanel_getAffinity(Panel* this);
+Affinity* AffinityPanel_getAffinity(Panel* this);
 
 #endif

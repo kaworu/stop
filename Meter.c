@@ -1,26 +1,33 @@
 /*
 htop - Meter.c
-(C) 2004-2006 Hisham H. Muhammad
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-#define _GNU_SOURCE
-#include "RichString.h"
 #include "Meter.h"
+
+#include "CPUMeter.h"
+#include "MemoryMeter.h"
+#include "SwapMeter.h"
+#include "TasksMeter.h"
+#include "LoadAverageMeter.h"
+#include "UptimeMeter.h"
+#include "BatteryMeter.h"
+#include "ClockMeter.h"
+#include "HostnameMeter.h"
+#include "RichString.h"
 #include "Object.h"
 #include "CRT.h"
-#include "ListItem.h"
 #include "String.h"
-#include "ProcessList.h"
+#include "ListItem.h"
 
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-
-#include "debug.h"
 #include <assert.h>
+#include <time.h>
 
 #ifndef USE_FUNKY_MODES
 #define USE_FUNKY_MODES 1
@@ -29,6 +36,8 @@ in the source distribution for its full text.
 #define METER_BUFFER_LEN 128
 
 /*{
+#include "ListItem.h"
+#include "ProcessList.h"
 
 typedef struct Meter_ Meter;
 typedef struct MeterType_ MeterType;
@@ -42,7 +51,7 @@ typedef void(*Meter_Draw)(Meter*, int, int, int);
 
 struct MeterMode_ {
    Meter_Draw draw;
-   char* uiName;
+   const char* uiName;
    int h;
 };
 
@@ -53,9 +62,9 @@ struct MeterType_ {
    int items;
    double total;
    int* attributes;
-   char* name;
-   char* uiName;
-   char* caption;
+   const char* name;
+   const char* uiName;
+   const char* caption;
    MeterType_Init init;
    MeterType_Done done;
    MeterType_SetMode setMode;
@@ -69,12 +78,19 @@ struct Meter_ {
    int mode;
    int param;
    Meter_Draw draw;
-   void* drawBuffer;
+   void* drawData;
    int h;
    ProcessList* pl;
    double* values;
    double total;
 };
+
+#ifdef USE_FUNKY_MODES
+typedef struct GraphData_ {
+   time_t time;
+   double values[METER_BUFFER_LEN];
+} GraphData;
+#endif
 
 typedef enum {
    CUSTOM_METERMODE = 0,
@@ -88,17 +104,6 @@ typedef enum {
 } MeterModeId;
 
 }*/
-
-#include "CPUMeter.h"
-#include "MemoryMeter.h"
-#include "SwapMeter.h"
-#include "TasksMeter.h"
-#include "LoadAverageMeter.h"
-#include "UptimeMeter.h"
-#include "BatteryMeter.h"
-#include "ClockMeter.h"
-#include "HostnameMeter.h"
-
 
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -123,12 +128,15 @@ MeterType* Meter_types[] = {
    &TasksMeter,
    &UptimeMeter,
    &BatteryMeter,
-   &AllCPUsMeter,
    &HostnameMeter,
+   &AllCPUsMeter,
+   &AllCPUs2Meter,
+   &LeftCPUsMeter,
+   &RightCPUsMeter,
+   &LeftCPUs2Meter,
+   &RightCPUs2Meter,
    NULL
 };
-
-static RichString Meter_stringBuffer;
 
 Meter* Meter_new(ProcessList* pl, int param, MeterType* type) {
    Meter* this = calloc(sizeof(Meter), 1);
@@ -142,38 +150,38 @@ Meter* Meter_new(ProcessList* pl, int param, MeterType* type) {
    this->values = calloc(sizeof(double), type->items);
    this->total = type->total;
    this->caption = strdup(type->caption);
-   Meter_setMode(this, type->mode);
    if (this->type->init)
       this->type->init(this);
+   Meter_setMode(this, type->mode);
    return this;
 }
 
 void Meter_delete(Object* cast) {
+   if (!cast)
+      return;
    Meter* this = (Meter*) cast;
-   assert (this != NULL);
    if (this->type->done) {
       this->type->done(this);
    }
-   if (this->drawBuffer)
-      free(this->drawBuffer);
+   if (this->drawData)
+      free(this->drawData);
    free(this->caption);
    free(this->values);
    free(this);
 }
 
-void Meter_setCaption(Meter* this, char* caption) {
+void Meter_setCaption(Meter* this, const char* caption) {
    free(this->caption);
    this->caption = strdup(caption);
 }
 
-static inline void Meter_displayToStringBuffer(Meter* this, char* buffer) {
+static inline void Meter_displayBuffer(Meter* this, char* buffer, RichString* out) {
    MeterType* type = this->type;
    Object_Display display = ((Object*)this)->display;
    if (display) {
-      display((Object*)this, &Meter_stringBuffer);
+      display((Object*)this, out);
    } else {
-      RichString_initVal(Meter_stringBuffer);
-      RichString_append(&Meter_stringBuffer, CRT_colors[type->attributes[0]], buffer);
+      RichString_write(out, CRT_colors[type->attributes[0]], buffer);
    }
 }
 
@@ -189,9 +197,9 @@ void Meter_setMode(Meter* this, int modeIndex) {
          this->type->setMode(this, modeIndex);
    } else {
       assert(modeIndex >= 1);
-      if (this->drawBuffer)
-         free(this->drawBuffer);
-      this->drawBuffer = NULL;
+      if (this->drawData)
+         free(this->drawData);
+      this->drawData = NULL;
 
       MeterMode* mode = Meter_modes[modeIndex];
       this->draw = mode->draw;
@@ -229,10 +237,12 @@ static void TextMeterMode_draw(Meter* this, int x, int y, int w) {
    int captionLen = strlen(this->caption);
    w -= captionLen;
    x += captionLen;
-   Meter_displayToStringBuffer(this, buffer);
    mvhline(y, x, ' ', CRT_colors[DEFAULT_COLOR]);
    attrset(CRT_colors[RESET_COLOR]);
-   RichString_printVal(Meter_stringBuffer, y, x);
+   RichString_begin(out);
+   Meter_displayBuffer(this, buffer, &out);
+   RichString_printVal(out, y, x);
+   RichString_end(out);
 }
 
 /* ---------- BarMeterMode ---------- */
@@ -256,16 +266,21 @@ static void BarMeterMode_draw(Meter* this, int x, int y, int w) {
    
    w--;
    x++;
-   char bar[w];
+
+   if (w < 1) {
+      attrset(CRT_colors[RESET_COLOR]);
+      return;
+   }
+   char bar[w + 1];
    
    int blockSizes[10];
    for (int i = 0; i < w; i++)
       bar[i] = ' ';
 
-   sprintf(bar + (w-strlen(buffer)), "%s", buffer);
+   const size_t barOffset = w - MIN((int)strlen(buffer), w);
+   snprintf(bar + barOffset, w - barOffset + 1, "%s", buffer);
 
    // First draw in the bar[] buffer...
-   double total = 0.0;
    int offset = 0;
    for (int i = 0; i < type->items; i++) {
       double value = this->values[i];
@@ -288,7 +303,6 @@ static void BarMeterMode_draw(Meter* this, int x, int y, int w) {
             }
          }
       offset = nextOffset;
-      total += this->values[i];
    }
 
    // ...then print the buffer.
@@ -325,35 +339,42 @@ static int GraphMeterMode_colors[21] = {
    GRAPH_8, GRAPH_8, GRAPH_9
 };
 
-static char* GraphMeterMode_characters = "^`'-.,_~'`-.,_~'`-.,_";
+static const char* GraphMeterMode_characters = "^`'-.,_~'`-.,_~'`-.,_";
 
 static void GraphMeterMode_draw(Meter* this, int x, int y, int w) {
 
-   if (!this->drawBuffer) this->drawBuffer = calloc(sizeof(double), METER_BUFFER_LEN);
-   double* drawBuffer = (double*) this->drawBuffer;
+   if (!this->drawData) this->drawData = calloc(sizeof(GraphData), 1);
+   GraphData* data = (GraphData*) this->drawData;
+   const int nValues = METER_BUFFER_LEN;
+   
+   time_t now = time(NULL);
+   if (now > data->time) {
+      data->time = now;
 
-   for (int i = 0; i < METER_BUFFER_LEN - 1; i++)
-      drawBuffer[i] = drawBuffer[i+1];
-
-   MeterType* type = this->type;
-   char buffer[METER_BUFFER_LEN];
-   type->setValues(this, buffer, METER_BUFFER_LEN - 1);
-
-   double value = 0.0;
-   for (int i = 0; i < type->items; i++)
-      value += this->values[i];
-   value /= this->total;
-   drawBuffer[METER_BUFFER_LEN - 1] = value;
-   for (int i = METER_BUFFER_LEN - w, k = 0; i < METER_BUFFER_LEN; i++, k++) {
-      double value = drawBuffer[i];
+      for (int i = 0; i < nValues - 1; i++)
+         data->values[i] = data->values[i+1];
+   
+      MeterType* type = this->type;
+      char buffer[nValues];
+      type->setValues(this, buffer, nValues - 1);
+   
+      double value = 0.0;
+      for (int i = 0; i < type->items; i++)
+         value += this->values[i];
+      value /= this->total;
+      data->values[nValues - 1] = value;
+   }
+   
+   for (int i = nValues - w, k = 0; i < nValues; i++, k++) {
+      double value = data->values[i];
       DrawDot( CRT_colors[DEFAULT_COLOR], y, ' ' );
       DrawDot( CRT_colors[DEFAULT_COLOR], y+1, ' ' );
       DrawDot( CRT_colors[DEFAULT_COLOR], y+2, ' ' );
       
       double threshold = 1.00;
-      for (int i = 0; i < 21; i++, threshold -= 0.05)
+      for (int j = 0; j < 21; j++, threshold -= 0.05)
          if (value >= threshold) {
-            DrawDot(CRT_colors[GraphMeterMode_colors[i]], y+(i/7.0), GraphMeterMode_characters[i]);
+            DrawDot(CRT_colors[GraphMeterMode_colors[j]], y+(j/7.0), GraphMeterMode_characters[j]);
             break;
          }
    }
@@ -362,7 +383,7 @@ static void GraphMeterMode_draw(Meter* this, int x, int y, int w) {
 
 /* ---------- LEDMeterMode ---------- */
 
-static char* LEDMeterMode_digits[3][10] = {
+static const char* LEDMeterMode_digits[3][10] = {
    { " __ ","    "," __ "," __ ","    "," __ "," __ "," __ "," __ "," __ "},
    { "|  |","   |"," __|"," __|","|__|","|__ ","|__ ","   |","|__|","|__|"},
    { "|__|","   |","|__ "," __|","   |"," __|","|__|","   |","|__|"," __|"},
@@ -374,17 +395,20 @@ static void LEDMeterMode_drawDigit(int x, int y, int n) {
 }
 
 static void LEDMeterMode_draw(Meter* this, int x, int y, int w) {
+   (void) w;
    MeterType* type = this->type;
    char buffer[METER_BUFFER_LEN];
    type->setValues(this, buffer, METER_BUFFER_LEN - 1);
-  
-   Meter_displayToStringBuffer(this, buffer);
+   
+   RichString_begin(out);
+   Meter_displayBuffer(this, buffer, &out);
 
    attrset(CRT_colors[LED_COLOR]);
    mvaddstr(y+2, x, this->caption);
    int xx = x + strlen(this->caption);
-   for (int i = 0; i < Meter_stringBuffer.len; i++) {
-      char c = RichString_getCharVal(Meter_stringBuffer, i);
+   int len = RichString_sizeVal(out);
+   for (int i = 0; i < len; i++) {
+      char c = RichString_getCharVal(out, i);
       if (c >= '0' && c <= '9') {
          LEDMeterMode_drawDigit(xx, y, c-48);
          xx += 4;
@@ -394,6 +418,7 @@ static void LEDMeterMode_draw(Meter* this, int x, int y, int w) {
       }
    }
    attrset(CRT_colors[RESET_COLOR]);
+   RichString_end(out);
 }
 
 #endif

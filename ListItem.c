@@ -1,19 +1,22 @@
 /*
 htop - ListItem.c
-(C) 2004-2006 Hisham H. Muhammad
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
 #include "ListItem.h"
-#include "String.h"
-#include "Object.h"
-#include "RichString.h"
-#include <string.h>
 
-#include "debug.h"
+#include "CRT.h"
+#include "String.h"
+#include "RichString.h"
+
+#include <string.h>
+#include <assert.h>
+#include <stdlib.h>
 
 /*{
+#include "Object.h"
 
 typedef struct ListItem_ {
    Object super;
@@ -44,12 +47,12 @@ static void ListItem_display(Object* cast, RichString* out) {
    RichString_write(out, CRT_colors[DEFAULT_COLOR], buffer);
 }
 
-ListItem* ListItem_new(char* value, int key) {
+ListItem* ListItem_new(const char* value, int key) {
    ListItem* this = malloc(sizeof(ListItem));
    Object_setClass(this, LISTITEM_CLASS);
    ((Object*)this)->display = ListItem_display;
    ((Object*)this)->delete = ListItem_delete;
-   this->value = String_copy(value);
+   this->value = strdup(value);
    this->key = key;
    return this;
 }

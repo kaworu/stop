@@ -5,23 +5,27 @@ Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-#define _GNU_SOURCE
+#include "TraceScreen.h"
+
+#include "CRT.h"
+#include "ProcessList.h"
+#include "ListItem.h"
+
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
-#include "TraceScreen.h"
-#include "ProcessList.h"
-#include "Process.h"
-#include "ListItem.h"
-#include "Panel.h"
-#include "FunctionBar.h"
+#include <signal.h>
 
 /*{
+#include "Process.h"
+#include "Panel.h"
+#include "FunctionBar.h"
 
 typedef struct TraceScreen_ {
    Process* process;
@@ -32,17 +36,17 @@ typedef struct TraceScreen_ {
 
 }*/
 
-static char* tbFunctions[] = {"AutoScroll ", "Stop Tracing   ", "Done   ", NULL};
+static const char* tsFunctions[] = {"AutoScroll ", "Stop Tracing   ", "Done   ", NULL};
 
-static char* tbKeys[] = {"F4", "F5", "Esc"};
+static const char* tsKeys[] = {"F4", "F5", "Esc"};
 
-static int tbEvents[] = {KEY_F(4), KEY_F(5), 27};
+static int tsEvents[] = {KEY_F(4), KEY_F(5), 27};
 
 TraceScreen* TraceScreen_new(Process* process) {
    TraceScreen* this = (TraceScreen*) malloc(sizeof(TraceScreen));
    this->process = process;
    this->display = Panel_new(0, 1, COLS, LINES-2, LISTITEM_CLASS, true, ListItem_compare);
-   this->bar = FunctionBar_new(tbFunctions, tbKeys, tbEvents);
+   this->bar = FunctionBar_new(tsFunctions, tsKeys, tsEvents);
    this->tracing = true;
    return this;
 }
@@ -73,9 +77,8 @@ void TraceScreen_run(TraceScreen* this) {
       dup2(fdpair[1], STDERR_FILENO);
       fcntl(fdpair[1], F_SETFL, O_NONBLOCK);
       sprintf(buffer, "%d", this->process->pid);
-      /* use truss(1) instead of strace(1) */
-      execlp("truss", "truss", "-p", buffer, NULL);
-      const char* message = "Could not execute 'truss'. Please make sure it is available in your $PATH.";
+      execlp("strace", "strace", "-p", buffer, NULL);
+      const char* message = "Could not execute 'strace'. Please make sure it is available in your $PATH.";
       write(fdpair[1], message, strlen(message));
       exit(1);
    }
@@ -142,6 +145,12 @@ void TraceScreen_run(TraceScreen* this) {
          this->tracing = !this->tracing;
          FunctionBar_setLabel(this->bar, KEY_F(5), this->tracing?"Stop Tracing   ":"Resume Tracing ");
          TraceScreen_draw(this);
+         break;
+      case KEY_HOME:
+         Panel_setSelected(panel, 0);
+         break;
+      case KEY_END:
+         Panel_setSelected(panel, Panel_size(panel)-1);
          break;
       case 'f':
       case KEY_F(4):

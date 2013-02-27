@@ -1,20 +1,20 @@
 /*
-htop
-(C) 2004-2006 Hisham H. Muhammad
+htop - Object.c
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
 #include "Object.h"
-#include "RichString.h"
+
 #include "CRT.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "debug.h"
-
 /*{
+#include "RichString.h"
 
 #ifndef DEBUG
 #define Object_setClass(obj, class)
@@ -46,12 +46,6 @@ char* OBJECT_CLASS = "Object";
 
 void Object_setClass(void* this, char* class) {
    ((Object*)this)->class = class;
-}
-
-static void Object_display(Object* this, RichString* out) {
-   char objAddress[50];
-   sprintf(objAddress, "%s @ %p", this->class, (void*) this);
-   RichString_write(out, CRT_colors[DEFAULT_COLOR], objAddress);
 }
 
 #endif

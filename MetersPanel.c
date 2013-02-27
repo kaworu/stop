@@ -1,14 +1,19 @@
+/*
+htop - MetersPanel.c
+(C) 2004-2011 Hisham H. Muhammad
+Released under the GNU GPL, see the COPYING file
+in the source distribution for its full text.
+*/
 
 #include "MetersPanel.h"
 
-#include "Panel.h"
-#include "Settings.h"
-#include "ScreenManager.h"
-
-#include "debug.h"
+#include <stdlib.h>
 #include <assert.h>
 
 /*{
+#include "Panel.h"
+#include "Settings.h"
+#include "ScreenManager.h"
 
 typedef struct MetersPanel_ {
    Panel super;
@@ -27,7 +32,7 @@ static void MetersPanel_delete(Object* object) {
    free(this);
 }
 
-static HandlerResult MetersPanel_EventHandler(Panel* super, int ch) {
+static HandlerResult MetersPanel_eventHandler(Panel* super, int ch) {
    MetersPanel* this = (MetersPanel*) super;
    
    int selected = Panel_getSelectedIndex(super);
@@ -87,7 +92,7 @@ static HandlerResult MetersPanel_EventHandler(Panel* super, int ch) {
    return result;
 }
 
-MetersPanel* MetersPanel_new(Settings* settings, char* header, Vector* meters, ScreenManager* scr) {
+MetersPanel* MetersPanel_new(Settings* settings, const char* header, Vector* meters, ScreenManager* scr) {
    MetersPanel* this = (MetersPanel*) malloc(sizeof(MetersPanel));
    Panel* super = (Panel*) this;
    Panel_init(super, 1, 1, 1, 1, LISTITEM_CLASS, true);
@@ -96,7 +101,7 @@ MetersPanel* MetersPanel_new(Settings* settings, char* header, Vector* meters, S
    this->settings = settings;
    this->meters = meters;
    this->scr = scr;
-   super->eventHandler = MetersPanel_EventHandler;
+   super->eventHandler = MetersPanel_eventHandler;
    Panel_setHeader(super, header);
    for (int i = 0; i < Vector_size(meters); i++) {
       Meter* meter = (Meter*) Vector_get(meters, i);

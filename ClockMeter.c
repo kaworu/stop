@@ -1,16 +1,19 @@
 /*
-htop
-(C) 2004-2006 Hisham H. Muhammad
+htop - ClockMeter.c
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
 #include "ClockMeter.h"
-#include "Meter.h"
+
+#include "CRT.h"
 
 #include <time.h>
 
-#include "debug.h"
+/*{
+#include "Meter.h"
+}*/
 
 int ClockMeter_attributes[] = {
    CLOCK

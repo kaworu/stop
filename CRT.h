@@ -4,21 +4,13 @@
 #define HEADER_CRT
 /*
 htop - CRT.h
-(C) 2004-2006 Hisham H. Muhammad
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-
-#include <curses.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-#include "String.h"
-
-#include "config.h"
-#include "debug.h"
+#ifdef HAVE_EXECINFO_H
+#endif
 
 #define ColorPair(i,j) COLOR_PAIR((7-i)*8+j)
 
@@ -40,8 +32,7 @@ in the source distribution for its full text.
 
 //#link curses
 
-bool CRT_hasColors;
-
+#include <stdbool.h>
 
 typedef enum ColorElements_ {
    RESET_COLOR,
@@ -59,7 +50,6 @@ typedef enum ColorElements_ {
    LED_COLOR,
    UPTIME,
    BATTERY,
-   TASKS_TOTAL,
    TASKS_RUNNING,
    SWAP,
    PROCESS,
@@ -95,14 +85,16 @@ typedef enum ColorElements_ {
    CHECK_MARK,
    CHECK_TEXT,
    CLOCK,
+   HELP_BOLD,
+   HOSTNAME,
    CPU_NICE,
    CPU_NORMAL,
    CPU_KERNEL,
-   HELP_BOLD,
    CPU_IOWAIT,
    CPU_IRQ,
    CPU_SOFTIRQ,
-   HOSTNAME,
+   CPU_STEAL,
+   CPU_GUEST,
    LAST_COLORELEMENT
 } ColorElements;
 
@@ -115,13 +107,19 @@ extern int CRT_colorScheme;
 
 extern int CRT_colors[LAST_COLORELEMENT];
 
+extern int CRT_cursorX;
+
 char* CRT_termType;
+
+void *backtraceArray[128];
 
 // TODO: pass an instance of Settings instead.
 
 void CRT_init(int delay, int colorScheme);
 
 void CRT_done();
+
+void CRT_fatalError(const char* note);
 
 int CRT_readKey();
 

@@ -4,22 +4,12 @@
 #define HEADER_CPUMeter
 /*
 htop - CPUMeter.h
-(C) 2004-2006 Hisham H. Muhammad
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
 #include "Meter.h"
-
-#include "ProcessList.h"
-
-#include <stdlib.h>
-#include <curses.h>
-#include <string.h>
-#include <math.h>
-
-#include "debug.h"
-#include <assert.h>
 
 extern int CPUMeter_attributes[];
 
@@ -33,5 +23,16 @@ extern int CPUMeter_attributes[];
 extern MeterType CPUMeter;
 
 extern MeterType AllCPUsMeter;
+
+extern MeterType AllCPUs2Meter;
+
+extern MeterType LeftCPUsMeter;
+
+extern MeterType RightCPUsMeter;
+
+extern MeterType LeftCPUs2Meter;
+
+extern MeterType RightCPUs2Meter;
+
 
 #endif

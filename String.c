@@ -1,28 +1,24 @@
 /*
-htop
-(C) 2004-2006 Hisham H. Muhammad
+htop - String.c
+(C) 2004-2011 Hisham H. Muhammad
 Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
-#define _GNU_SOURCE
 #include "String.h"
+
+#include "config.h"
+
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "debug.h"
-
 /*{
 #define String_startsWith(s, match) (strstr((s), (match)) == (s))
 }*/
 
-inline char* String_copy(char* orig) {
-   return strdup(orig);
-}
-
-char* String_cat(char* s1, char* s2) {
+char* String_cat(const char* s1, const char* s2) {
    int l1 = strlen(s1);
    int l2 = strlen(s2);
    char* out = malloc(l1 + l2 + 1);
@@ -31,7 +27,7 @@ char* String_cat(char* s1, char* s2) {
    return out;
 }
 
-char* String_trim(char* in) {
+char* String_trim(const char* in) {
    while (in[0] == ' ' || in[0] == '\t' || in[0] == '\n') {
       in++;
    }
@@ -55,7 +51,8 @@ inline int String_eq(const char* s1, const char* s2) {
    return (strcmp(s1, s2) == 0);
 }
 
-char** String_split(char* s, char sep) {
+char** String_split(const char* s, char sep, int* n) {
+   *n = 0;
    const int rate = 10;
    char** out = (char**) malloc(sizeof(char*) * rate);
    int ctr = 0;
@@ -83,6 +80,7 @@ char** String_split(char* s, char sep) {
    }
    out = realloc(out, sizeof(char*) * (ctr + 1));
    out[ctr] = NULL;
+   *n = ctr;
    return out;
 }
 
@@ -93,7 +91,7 @@ void String_freeArray(char** s) {
    free(s);
 }
 
-int String_contains_i(char* s, char* match) {
+int String_contains_i(const char* s, const char* match) {
    int lens = strlen(s);
    int lenmatch = strlen(match);
    for (int i = 0; i < lens-lenmatch; i++) {
@@ -120,7 +118,7 @@ char* String_getToken(const char* line, const unsigned short int numMatch) {
          count++;
     
       if(inWord == 1){
-         if (count == numMatch && line[i] != ' ' && line[i] != '\0' && line[i] != '\n' && line[i] != EOF) {
+         if (count == numMatch && line[i] != ' ' && line[i] != '\0' && line[i] != '\n' && line[i] != (char)EOF) {
             match[foundCount] = line[i];
             foundCount++;
          }

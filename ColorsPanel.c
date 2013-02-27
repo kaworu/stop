@@ -1,14 +1,18 @@
+/*
+htop - ColorsPanel.c
+(C) 2004-2011 Hisham H. Muhammad
+Released under the GNU GPL, see the COPYING file
+in the source distribution for its full text.
+*/
 
-#include "CRT.h"
 #include "ColorsPanel.h"
 
-#include "Panel.h"
+#include "CRT.h"
 #include "CheckItem.h"
-#include "Settings.h"
-#include "ScreenManager.h"
 
-#include "debug.h"
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 // TO ADD A NEW SCHEME:
 // * Increment the size of bool check in ColorsPanel.h
@@ -17,6 +21,9 @@
 // * Add the colors in CRT_setColors
 
 /*{
+#include "Panel.h"
+#include "Settings.h"
+#include "ScreenManager.h"
 
 typedef struct ColorsPanel_ {
    Panel super;
@@ -27,7 +34,7 @@ typedef struct ColorsPanel_ {
 
 }*/
 
-static char* ColorSchemes[] = {
+static const char* ColorSchemes[] = {
    "Default",
    "Monochromatic",
    "Black on White",
@@ -67,7 +74,7 @@ static HandlerResult ColorsPanel_EventHandler(Panel* super, int ch) {
       this->settings->changed = true;
       Header* header = this->settings->header;
       CRT_setColors(mark);
-      Panel* menu = (Panel*) Vector_get(this->scr->items, 0);
+      Panel* menu = (Panel*) Vector_get(this->scr->panels, 0);
       Header_draw(header);
       RichString_setAttr(&(super->header), CRT_colors[PANEL_HEADER_FOCUS]);
       RichString_setAttr(&(menu->header), CRT_colors[PANEL_HEADER_UNFOCUS]);
@@ -88,7 +95,7 @@ ColorsPanel* ColorsPanel_new(Settings* settings, ScreenManager* scr) {
 
    Panel_setHeader(super, "Colors");
    for (int i = 0; ColorSchemes[i] != NULL; i++) {
-      Panel_add(super, (Object*) CheckItem_new(String_copy(ColorSchemes[i]), NULL, false));
+      Panel_add(super, (Object*) CheckItem_new(strdup(ColorSchemes[i]), NULL, false));
    }
    CheckItem_set((CheckItem*)Panel_get(super, settings->colorScheme), true);
    return this;
